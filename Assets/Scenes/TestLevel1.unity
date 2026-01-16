@@ -1923,7 +1923,7 @@ MonoBehaviour:
     staminaRegenDelay: 0.1
     dashImpulse: 20
     dashDuration: 0.7
-    dashCooldown: 0.1
+    dashCooldown: 0.5
     dashFrictionOverride: 0.35
     airDashDuration: 0.2
     airDashVelocity: 20
@@ -1962,6 +1962,18 @@ MonoBehaviour:
     underwaterFriction: 2
     underwaterGravity: 6
     underwaterVelocityDampening: 2
+    heavyMeleeChargeTime: 1
+    heavyMeleeMinCharge: 0.2
+    heavyMeleeBaseSpeed: 25
+    heavyMeleeSpeedMultiplier: 1.5
+    heavyMeleeLungeDuration: 0.4
+    heavyMeleeRecoveryDuration: 0.5
+    heavyMeleeDrag: 0
+    heavyMeleeRecoveryDrag: 10
+    heavyMeleeHitRange: 3
+    heavyMeleeConeAngle: 0.5
+    heavyMeleeDamage: 50
+    heavyMeleeTurnClamp: 2
 --- !u!114 &1057059465
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3635,13 +3647,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1942257909}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.47159657, y: -0, z: -0, w: 0.8818145}
-  m_LocalPosition: {x: 0.201, y: 0.30299997, z: 0.519}
-  m_LocalScale: {x: 0.15, y: 0.15, z: 0.15}
-  m_ConstrainProportionsScale: 1
+  m_LocalRotation: {x: 0.58626133, y: -0.026078163, z: 0.061885357, w: 0.8073337}
+  m_LocalPosition: {x: 0.499, y: 0.35319996, z: 0.39}
+  m_LocalScale: {x: 0.22, y: 0.41, z: 0.23}
+  m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 893739372}
-  m_LocalEulerAnglesHint: {x: 56.276, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 71.777, y: 5.589, z: 12.812}
 --- !u!23 &1942257912
 MeshRenderer:
   m_ObjectHideFlags: 0

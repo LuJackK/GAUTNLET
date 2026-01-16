@@ -7,6 +7,7 @@ namespace Fragsurf.Movement {
         Walk,
         Noclip, // not implemented
         Ladder, // not implemented
+        HeavyMelee
     }
 
     public class MoveData {
@@ -71,7 +72,15 @@ namespace Fragsurf.Movement {
         public float fallingVelocity = 0f;
 
         public bool useStepOffset = false;
-        public float stepOffset = 0f; 
+        public float stepOffset = 0f;
+
+        // Heavy Melee
+        public enum MeleeState { None, Charging, Lunging, Recovery }
+        public MeleeState meleeState = MeleeState.None;
+        public float meleeTimer = 0f;
+        public bool wishMelee = false;
+        public bool hasHitTarget = false;
+ 
 
     }
 }

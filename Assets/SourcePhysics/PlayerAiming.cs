@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using Unity.Cinemachine;
 
 public class PlayerAiming : MonoBehaviour
 {
@@ -13,6 +14,9 @@ public class PlayerAiming : MonoBehaviour
 	[Header("Restrictions")]
 	public float minYRotation = -90f;
 	public float maxYRotation = 90f;
+    
+    [Header("Turn Clamping")]
+    public float maxTurnSpeed = -1f; // Negative = unlimited
 
 	//The real rotation of the camera without recoil
 	private Vector3 realRotation;
@@ -29,6 +33,9 @@ public class PlayerAiming : MonoBehaviour
 
 	[HideInInspector]
 	public Vector2 punchAngleVel;
+
+	[Header("Cinemachine")]
+	public CinemachineCamera freeLookCamera;
 
 	private void Start()
 	{
@@ -47,6 +54,11 @@ public class PlayerAiming : MonoBehaviour
 
 		// Input
 		float xMovement = Input.GetAxisRaw("Mouse X") * horizontalSensitivity * sensitivityMultiplier;
+        
+        if (maxTurnSpeed > 0f) {
+            xMovement = Mathf.Clamp(xMovement, -maxTurnSpeed, maxTurnSpeed);
+        }
+
 		float yMovement = -Input.GetAxisRaw("Mouse Y") * verticalSensitivity  * sensitivityMultiplier;
 
 		// Calculate real rotation from input
@@ -61,7 +73,43 @@ public class PlayerAiming : MonoBehaviour
 		cameraEulerPunchApplied.x += punchAngle.x;
 		cameraEulerPunchApplied.y += punchAngle.y;
 
-		transform.eulerAngles = cameraEulerPunchApplied;
+
+		if (freeLookCamera != null)
+		{
+			// Drive Cinemachine 3.x (CinemachineCamera)
+            var orbital = freeLookCamera.GetComponent<CinemachineOrbitalFollow>();
+            
+            // Auto-disable conflicting input driver if present
+            var inputController = freeLookCamera.GetComponent<CinemachineInputAxisController>();
+            if (inputController != null && inputController.enabled) {
+                Debug.LogWarning("Disabling CinemachineInputAxisController to allow PlayerAiming clamping control.");
+                inputController.enabled = false;
+            }
+
+            if (orbital != null) {
+                // Debugging for Clamp
+                if (maxTurnSpeed > 0f) {
+                     // Debug.Log($"Clamping active. Raw Input: {xMovement}, Clamped: {Mathf.Clamp(xMovement, -maxTurnSpeed, maxTurnSpeed)}");
+                }
+
+                // Map Pitch (-90 to 90) to FreeLook Y (0 to 1) if using 0-1 range? 
+                // CM3 Orbital usually treats Vertical Axis as Degrees (-90 to 90) or similar depending on settings.
+                // We will try driving it as degrees first which matches realRotation.x
+                
+                // NOTE: If your Orbital Vertical Axis Range is 0-1, verify in Inspector!
+                orbital.HorizontalAxis.Value = cameraEulerPunchApplied.y;
+                orbital.VerticalAxis.Value = cameraEulerPunchApplied.x;
+            }
+            else
+            {
+                Debug.LogError("PlayerAiming: CinemachineCamera assigned but 'CinemachineOrbitalFollow' component missing!");
+            }
+		}
+		else 
+		{
+			// Standard Camera
+			transform.eulerAngles = cameraEulerPunchApplied;
+		}
 	}
 
 	public void ViewPunch(Vector2 punchAmount)

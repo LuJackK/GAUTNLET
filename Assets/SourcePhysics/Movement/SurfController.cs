@@ -141,6 +141,26 @@ namespace Fragsurf.Movement {
         private void CalculateMovementVelocity () {
             switch (_surfer.moveType) {
 
+                case MoveType.HeavyMelee:
+                    if (_surfer.moveData.meleeState == MoveData.MeleeState.Charging) {
+                         // Freeze completely (including gravity)
+                         _surfer.moveData.velocity = Vector3.zero;
+                    }
+                    else if (_surfer.moveData.meleeState == MoveData.MeleeState.Lunging) {
+                         // No friction, just momentum
+                         // ResolveCollisions is handled at end of ProcessMovement
+                    }
+                    else if (_surfer.moveData.meleeState == MoveData.MeleeState.Recovery) {
+                         // High Drag on Ground, less in Air
+                         if (_surfer.moveData.grounded)
+                             ApplyFriction(1.0f, true, true, _config.heavyMeleeRecoveryDrag);
+                         else {
+                             // Simple air dampen
+                             _surfer.moveData.velocity = Vector3.MoveTowards(_surfer.moveData.velocity, Vector3.zero, _deltaTime * 10f);
+                         }
+                    }
+                    break;
+
                 case MoveType.Walk:
 
                 if (_surfer.groundObject == null) {
@@ -208,7 +228,10 @@ namespace Fragsurf.Movement {
                     }
 
                     sliding = false;
-                    if (_surfer.moveData.velocity.magnitude > _config.minimumSlideSpeed && _surfer.moveData.slidingEnabled && _surfer.moveData.crouching && slideDelay <= 0f) {
+                    // Check if on a slope
+                    bool onSlope = Vector3.Angle (Vector3.up, groundNormal) > 5f;
+
+                    if ((_surfer.moveData.velocity.magnitude > _config.minimumSlideSpeed || onSlope ) && _surfer.moveData.slidingEnabled && _surfer.moveData.crouching && slideDelay <= 0f) {
 
                         if (!wasSliding) {
                             float dashBonus = _surfer.moveData.isDashing ? 1.5f : 1f; // Bonus speed if starting slide during dash
@@ -506,7 +529,7 @@ namespace Fragsurf.Movement {
 
         }
 
-        private void ApplyFriction (float t, bool yAffected, bool grounded) {
+        private void ApplyFriction (float t, bool yAffected, bool grounded, float frictionOverride = -1f) {
 
             // Initialise variables
             Vector3 _vel = _surfer.moveData.velocity;
@@ -521,6 +544,8 @@ namespace Fragsurf.Movement {
             _drop = 0.0f;
 
             float fric = crouching ? _config.crouchFriction : _config.friction;
+            if (frictionOverride >= 0f) fric = frictionOverride;
+
             float accel = crouching ? _config.crouchAcceleration : _config.acceleration;
             float decel = crouching ? _config.crouchDeceleration : _config.deceleration;
 
@@ -870,7 +895,10 @@ namespace Fragsurf.Movement {
             // Set the velocity
             slideSpeedCurrent -= _config.slideFriction * _deltaTime;
             slideSpeedCurrent = Mathf.Clamp (slideSpeedCurrent, 0f, _config.maximumSlideSpeed);
-            slideSpeedCurrent -= (slideForward * slideSpeedCurrent).y * _deltaTime * _config.downhillSlideSpeedMultiplier; // Accelerate downhill (-y = downward, - * - = +)
+            if (slideForward.y < 0f)
+                slideSpeedCurrent += _config.downhillSlideSpeedMultiplier * _deltaTime;
+            else
+                slideSpeedCurrent -= (slideForward * slideSpeedCurrent).y * _deltaTime * _config.downhillSlideSpeedMultiplier; // Accelerate downhill (-y = downward, - * - = +)
 
             _surfer.moveData.velocity = slideForward * slideSpeedCurrent;
             

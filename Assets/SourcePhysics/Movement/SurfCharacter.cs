@@ -74,7 +74,8 @@ namespace Fragsurf.Movement {
 
         ///// Properties /////
 
-        public MoveType moveType { get { return MoveType.Walk; } }
+        private MoveType _moveType = MoveType.Walk;
+        public MoveType moveType { get { return _moveType; } }
         public MovementConfig moveConfig { get { return movementConfig; } }
         public MoveData moveData { get { return _moveData; } }
         public new Collider collider { get { return _collider; } }
@@ -115,6 +116,9 @@ namespace Fragsurf.Movement {
 
         }
 
+        private PlayerAiming _playerAiming;
+        private float _defaultTurnSpeed;
+
         private void Start () {
             
             _colliderObject = new GameObject ("PlayerCollider");
@@ -138,6 +142,8 @@ namespace Fragsurf.Movement {
             _cameraWaterCheckRb.isKinematic = true;
 
             _cameraWaterCheck = _cameraWaterCheckObject.AddComponent<CameraWaterCheck> ();
+            
+            _cameraWaterCheck = _cameraWaterCheckObject.AddComponent<CameraWaterCheck> ();
 
             prevPosition = transform.position;
 
@@ -146,6 +152,18 @@ namespace Fragsurf.Movement {
 
             if (playerRotationTransform == null && transform.childCount > 0)
                 playerRotationTransform = transform.GetChild (0);
+
+            // Cache PlayerAiming and default turn speed
+            // First check view transform, then self, then children
+            if (viewTransform) _playerAiming = viewTransform.GetComponent<PlayerAiming>();
+            if (_playerAiming == null) _playerAiming = GetComponent<PlayerAiming>();
+            if (_playerAiming == null) _playerAiming = GetComponentInChildren<PlayerAiming>();
+            
+            if (_playerAiming != null) {
+                _defaultTurnSpeed = _playerAiming.maxTurnSpeed;
+            } else {
+                Debug.LogError("SurfCharacter: Could not find PlayerAiming script! Melee turn clamping will not work.");
+            }
 
             _collider = gameObject.GetComponent<Collider> ();
 
@@ -227,6 +245,8 @@ namespace Fragsurf.Movement {
 
             //UpdateTestBinds ();
             UpdateMoveData ();
+            UpdateMeleeLogic(); // Handle state transitions
+            
             
             // Previous movement code
             Vector3 positionalMovement = transform.position - prevPosition;
@@ -410,6 +430,110 @@ namespace Fragsurf.Movement {
             newVelocity = Vector3.ClampMagnitude (newVelocity, Mathf.Max (moveData.velocity.magnitude, 30f));
             moveData.velocity = newVelocity;
 
+        }
+
+        private void UpdateMeleeLogic() {
+            if (_moveType == MoveType.Walk) {
+                // Input Listener for Melee (Q key)
+                if (Input.GetKeyDown(KeyCode.Q)) {
+                     _moveType = MoveType.HeavyMelee;
+                     _moveData.meleeState = MoveData.MeleeState.Charging;
+                     _moveData.meleeTimer = 0f;
+                     SetTurnClamp(movementConfig.heavyMeleeTurnClamp);
+                }
+            } else if (_moveType == MoveType.HeavyMelee) {
+                _moveData.meleeTimer += Time.deltaTime;
+                
+                if (_moveData.meleeState == MoveData.MeleeState.Charging) {
+                    bool release = Input.GetKeyUp(KeyCode.Q) || _moveData.meleeTimer >= movementConfig.heavyMeleeChargeTime;
+                    // Lunge if released generally. 
+                    if (release) {
+                        _moveData.meleeState = MoveData.MeleeState.Lunging;
+                        _moveData.meleeTimer = 0f;
+                        _moveData.hasHitTarget = false;
+                        
+                        // Calculate Lunge Direction
+                        Vector3 lungeDir = viewTransform.forward;
+                        if (_moveData.grounded && lungeDir.y < 0) {
+                            lungeDir.y = 0;
+                            lungeDir.Normalize();
+                        }
+                        
+                        // Apply Velocity
+                        moveData.velocity = lungeDir * movementConfig.heavyMeleeBaseSpeed * movementConfig.heavyMeleeSpeedMultiplier;
+                        SetTurnClamp(movementConfig.heavyMeleeTurnClamp); 
+                    }
+                }
+                else if (_moveData.meleeState == MoveData.MeleeState.Lunging) {
+                    if (_moveData.meleeTimer > movementConfig.heavyMeleeLungeDuration) {
+                        // Natural End -> Recovery
+                        _moveData.meleeState = MoveData.MeleeState.Recovery;
+                        _moveData.meleeTimer = 0f;
+                        SetTurnClamp(_defaultTurnSpeed);
+                    }
+                    
+                    if (!_moveData.hasHitTarget) CheckMeleeHit();
+
+                    // Cancel Check (e.g. Crouch to Slide)
+                    // "HMC" - If we crouch, we break out into slide (Walk state handles this if velocity high + crouch)
+                    if (Input.GetButtonDown("Crouch") || Input.GetButton("Crouch")) { // Using GetButton for hold check
+                         _moveType = MoveType.Walk;
+                         _moveData.meleeState = MoveData.MeleeState.None;
+                         _moveData.crouching = true; // Ensure crouch bit is set
+                         SetTurnClamp(_defaultTurnSpeed);
+                    }
+                }
+                else if (_moveData.meleeState == MoveData.MeleeState.Recovery) {
+                    if (_moveData.meleeTimer > movementConfig.heavyMeleeRecoveryDuration) {
+                        _moveType = MoveType.Walk;
+                        _moveData.meleeState = MoveData.MeleeState.None;
+                        SetTurnClamp(_defaultTurnSpeed);
+                    }
+                }
+            }
+        }
+
+        private void CheckMeleeHit()
+        {
+            float range = movementConfig.heavyMeleeHitRange;
+            float angleThreshold = movementConfig.heavyMeleeConeAngle;
+            int layerMask = SurfPhysics.groundLayerMask; // Ideally enemy layer, but using ground for now or default? User said "enemyLayerMask". I'll use Default or All for now, or check for specific component.
+            // Actually user code example: `enemyLayerMask`. I don't have it defined. I'll search for all colliders and filter.
+            
+            Collider[] hits = Physics.OverlapSphere(viewTransform.position + viewTransform.forward * range, range); // Center sphere further out? "Cast a sphere at the end of the lunge distance"
+            // User: "Sphere Cast: Cast a sphere at the end of the lunge distance"
+            // Actually Physics.OverlapSphere(transform.position, meleeRange) in user code.
+            
+            hits = Physics.OverlapSphere(transform.position, range);
+
+            foreach (var hit in hits) {
+                if (hit.transform == transform || hit.transform.IsChildOf(transform)) continue; // Don't hit self
+                
+                Vector3 dirToTarget = (hit.transform.position - transform.position).normalized;
+                Vector3 lungeDir = moveData.velocity.normalized;
+                
+                if (Vector3.Dot(lungeDir, dirToTarget) > angleThreshold) {
+                    // Hit!
+                    // Apply Damage (Stub)
+                    Debug.Log("Hit " + hit.name);
+                    
+                    // Add force to target?
+                    Rigidbody targetRb = hit.GetComponent<Rigidbody>();
+                    if (targetRb) {
+                        targetRb.AddForce(lungeDir * 10f, ForceMode.Impulse);
+                    }
+                    
+                    _moveData.hasHitTarget = true; 
+                    // Should we stop lunge? User doesn't say. "TriggerImpactFrame".
+                    // Only hit once per lunge? User code iterates all hits.
+                }
+            }
+        }
+
+        private void SetTurnClamp(float val) {
+            if (_playerAiming != null) {
+                _playerAiming.maxTurnSpeed = val;
+            }
         }
 
     }

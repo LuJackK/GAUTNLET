@@ -73,6 +73,21 @@ namespace Fragsurf.Movement {
         public float underwaterFriction = 2f;
         public float underwaterGravity = 6f;
         public float underwaterVelocityDampening = 2f;
+
+        [Header("Heavy Melee")]
+        public float heavyMeleeChargeTime = 1.0f; // Max charge duration
+        public float heavyMeleeMinCharge = 0.2f; // Min charge to activate
+        public float heavyMeleeBaseSpeed = 20f;
+        public float heavyMeleeSpeedMultiplier = 1.5f; // With "Item" equivalent
+        public float heavyMeleeLungeDuration = 0.4f;
+        public float heavyMeleeRecoveryDuration = 0.5f;
+        public float heavyMeleeDrag = 0f;
+        public float heavyMeleeRecoveryDrag = 3f;
+        public float heavyMeleeHitRange = 3f;
+        public float heavyMeleeConeAngle = 0.5f; // Dot product threshold (~60 deg)
+        public float heavyMeleeDamage = 50f;
+        public float heavyMeleeTurnClamp = 0.7f; // Max degrees per frame or similar metric
+
         
     }
 
