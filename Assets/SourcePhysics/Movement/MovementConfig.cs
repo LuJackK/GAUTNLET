@@ -12,6 +12,7 @@ namespace Fragsurf.Movement {
         public float doubleJumpForce = 8f;
         public float doubleJumpDelay = 0.2f;
 
+
         [Header ("Stamina")]
         public float maxStamina = 3f;
         public float staminaRegenRate = 1f; // bars per second
@@ -87,6 +88,13 @@ namespace Fragsurf.Movement {
         public float heavyMeleeConeAngle = 0.5f; // Dot product threshold (~60 deg)
         public float heavyMeleeDamage = 50f;
         public float heavyMeleeTurnClamp = 0.7f; // Max degrees per frame or similar metric
+        
+        [Header("Heavy Melee Physics")]
+        [Tooltip("Fraction of velocity retained when entering charge state (0-1)")]
+        [Range(0f, 1f)]
+        public float heavyMeleeChargeVelocityRetention = 0.1f;
+        [Tooltip("Friction applied while sliding during charge")]
+        public float heavyMeleeChargeFriction = 6.0f;
 
         
     }

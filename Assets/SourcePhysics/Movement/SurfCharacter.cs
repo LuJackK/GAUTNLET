@@ -45,9 +45,30 @@ namespace Fragsurf.Movement {
         public bool useStepOffset = false;
         public float stepOffset = 0.35f;
 
+        [Header("VFX")]
+        public ParticleSystem slideTrailParticles;
+        public ParticleSystem slideSparksParticles;
+        public GameObject dashPoofPrefab;
+        public GameObject jumpPoofPrefab;
+        public ParticleSystem gauntletFlameParticles;
+        
+        [Header("VFX Spawn Points")]
+        public Transform gloveVfxSpawnPoint;  // For gauntlet flames
+        public Transform lowerVfxSpawnPoint;  // For feet/slide effects
+        public Transform middleVfxSpawnPoint; // For body/center effects (dash, jump)
+
         [Header("Sliding Visuals")]
         public Transform renderMesh;
         public Transform playerHitbox;
+
+        [Header("Animation")]
+        public Animator animator;
+        public string speedParameterName = "Speed";
+        public string groundedParameterName = "Grounded";
+        public string jumpingParameterName = "Jumping";
+        public string crouchingParameterName = "Crouching";
+        public string slidingParameterName = "Sliding";
+        public string punchingParameterName = "Punching";
 
         [Header ("Movement Config")]
         [SerializeField]
@@ -233,6 +254,17 @@ namespace Fragsurf.Movement {
             _moveData.origin = transform.position;
             _startPosition = transform.position;
 
+            // Snap to ground on spawn
+            float snapDistance = 5f; // Max distance to snap down
+            Vector3 rayStart = _moveData.origin;
+            if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit snapHit, snapDistance, SurfPhysics.groundLayerMask, QueryTriggerInteraction.Ignore)) {
+                // Snap origin so feet touch ground
+                float distToFeet = _collider.bounds.extents.y;
+                _moveData.origin = snapHit.point + Vector3.up * distToFeet;
+                _startPosition = _moveData.origin;
+                Debug.Log($"[SurfCharacter] Snapped to ground. New Origin: {_moveData.origin}");
+            }
+
             _moveData.useStepOffset = useStepOffset;
             _moveData.stepOffset = stepOffset;
 
@@ -301,6 +333,25 @@ namespace Fragsurf.Movement {
                 if (playerHitbox != null)
                     playerHitbox.localRotation = Quaternion.Slerp(playerHitbox.localRotation, targetRotation, Time.deltaTime * movementConfig.slideTiltSpeed);
             }
+
+            // Debug Logging (Every Frame)
+            bool isPunching = _moveType == MoveType.HeavyMelee;
+            // Debug.Log($"Grounded: {_moveData.grounded}, Jumping: {_controller.jumping}, Crouching: {_moveData.crouching}, Sliding: {_controller.IsSliding}, Punching: {isPunching}");
+
+            if (animator != null) {
+                float horizontalSpeed = new Vector3(_moveData.velocity.x, 0f, _moveData.velocity.z).magnitude;
+                animator.SetFloat(speedParameterName, horizontalSpeed);
+
+                animator.SetBool(groundedParameterName, _moveData.grounded);
+                animator.SetBool(jumpingParameterName, _controller.jumping);
+                animator.SetBool(crouchingParameterName, _moveData.crouching);
+                animator.SetBool(slidingParameterName, _controller.IsSliding);
+                animator.SetBool(punchingParameterName, _moveType == MoveType.HeavyMelee);
+                animator.SetBool(punchingParameterName, _moveType == MoveType.HeavyMelee);
+            }
+            
+            // --- VFX Logic ---
+            UpdateVFX();
 
             transform.position = moveData.origin;
             prevPosition = transform.position;
@@ -439,6 +490,9 @@ namespace Fragsurf.Movement {
                      _moveType = MoveType.HeavyMelee;
                      _moveData.meleeState = MoveData.MeleeState.Charging;
                      _moveData.meleeTimer = 0f;
+                     // Retain fractional momentum
+                     _moveData.velocity *= movementConfig.heavyMeleeChargeVelocityRetention;
+                     _moveData.velocity.y = 0f; // Pause vertical momentum
                      SetTurnClamp(movementConfig.heavyMeleeTurnClamp);
                 }
             } else if (_moveType == MoveType.HeavyMelee) {
@@ -534,6 +588,57 @@ namespace Fragsurf.Movement {
             if (_playerAiming != null) {
                 _playerAiming.maxTurnSpeed = val;
             }
+        }
+
+        private int _prevJumpCount = 0;
+        private bool _wasDashing = false;
+
+        private void UpdateVFX() {
+            // Sliding
+            // Ensure particles are assigned to avoid ref errors
+            if (slideTrailParticles != null) {
+                if (_controller.IsSliding && !slideTrailParticles.isPlaying) slideTrailParticles.Play();
+                else if (!_controller.IsSliding && slideTrailParticles.isPlaying) slideTrailParticles.Stop();
+            }
+
+            if (slideSparksParticles != null) {
+                if (_controller.IsSliding && !slideSparksParticles.isPlaying) slideSparksParticles.Play();
+                else if (!_controller.IsSliding && slideSparksParticles.isPlaying) slideSparksParticles.Stop();
+            }
+
+            // Punching (Gauntlet Flames)
+            // Active during HeavyMelee mode
+            if (gauntletFlameParticles != null) {
+                if (_moveType == MoveType.HeavyMelee && !gauntletFlameParticles.isPlaying) {
+                     gauntletFlameParticles.Play();
+                     // Optional: If you want to parent them to hands specifically or just play a single system
+                     // If the system is already on the player, Play() works. 
+                     // If it depends on left/right hand usage, we might need more logic, but for "Punching mode" generally:
+                }
+                else if (_moveType != MoveType.HeavyMelee && gauntletFlameParticles.isPlaying) {
+                     gauntletFlameParticles.Stop();
+                }
+            }
+
+            // Dashing (Poof Cloud)
+            // Detect rising edge of isDashing
+            if (_moveData.isDashing && !_wasDashing) {
+                if (dashPoofPrefab != null) {
+                    Transform spawn = middleVfxSpawnPoint != null ? middleVfxSpawnPoint : transform;
+                    Instantiate(dashPoofPrefab, spawn.position, spawn.rotation);
+                }
+            }
+            _wasDashing = _moveData.isDashing;
+
+            // Double Jump (Poof Cloud)
+            // Detect increment in jump count > 1
+            if (_moveData.jumpCount > _prevJumpCount && _moveData.jumpCount > 1) {
+                if (jumpPoofPrefab != null) {
+                     Transform spawn = middleVfxSpawnPoint != null ? middleVfxSpawnPoint : transform;
+                     Instantiate(jumpPoofPrefab, spawn.position, spawn.rotation);
+                }
+            }
+            _prevJumpCount = _moveData.jumpCount;
         }
 
     }
