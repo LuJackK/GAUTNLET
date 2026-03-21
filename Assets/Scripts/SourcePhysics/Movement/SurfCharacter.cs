@@ -108,7 +108,8 @@ namespace Fragsurf.Movement {
         public Vector3 right { get { return viewTransform.right; } }
         public Vector3 up { get { return viewTransform.up; } }
 
-        Vector3 prevPosition;
+        private Vector3 prevPosition;
+        private MoveData _prevState = new MoveData();
 
         ///// Methods /////
 
@@ -281,15 +282,19 @@ namespace Fragsurf.Movement {
             }
 
             _inputCollector = gameObject.AddComponent<LocalInputCollector>();
+            _prevState = _moveData.Clone();
 
         }
 
         private LocalInputCollector _inputCollector;
         private int _frameCounter;
+        private int _lastRenderedTick = -1;
 
         public MoveData SimulationTick(MoveData state, InputFrame input, float deltaTime) {
             
-            MoveData prevState = state.Clone();
+            state.frame = input.frame;
+            _prevState = state.Clone();
+            MoveData prevStateCloned = state.Clone();
 
             // Clear pulse flags
             state.dashStartedThisFrame = false;
@@ -301,10 +306,10 @@ namespace Fragsurf.Movement {
             ApplyInputToState(ref state, input);
             UpdateMeleeState(ref state, deltaTime);
             
-            // Previous movement code
-            Vector3 positionalMovement = transform.position - prevPosition;
-            transform.position = prevPosition;
-            state.origin += positionalMovement;
+            // Previous movement code (Removed to fix double-movement bug in networked mode)
+            // Vector3 positionalMovement = transform.position - prevPosition;
+            // transform.position = prevPosition;
+            // state.origin += positionalMovement;
 
             // Triggers
             if (numberOfTriggers != triggers.Count) {
@@ -335,11 +340,7 @@ namespace Fragsurf.Movement {
 
             ProcessHitboxes(ref state);
 
-            if (characterRenderer != null) {
-                // Apply visual state right after tick for now. 
-                // Later this might be moved to a post-tick or render-only loop.
-                characterRenderer.ApplyState(state, prevState);
-            }
+            // characterRenderer.ApplyState moved to Update() to avoid redundant calls during rollback resimulations
 
             return state;
         }
@@ -363,6 +364,17 @@ namespace Fragsurf.Movement {
                     }
                     hit.TakeHit(meleeHitbox); // Trigger VFX/audio
                 }
+            }
+        }
+
+        public void LoadState(MoveData savedState) {
+            _moveData = savedState.Clone();
+            _prevState = savedState.Clone(); // Synchronize previous state to prevent jumps after load
+            // Snap transform immediately — renderer will interpolate next Update()
+            if (rb != null) {
+                rb.position = _moveData.origin;
+            } else {
+                transform.position = _moveData.origin;
             }
         }
 
@@ -441,12 +453,27 @@ namespace Fragsurf.Movement {
                 playerHitbox.localPosition = _initialPlayerHitboxLocalPos + dashPivotOffset - dashRotation * dashPivotOffset;
             }
             
-            transform.position = moveData.origin;
-            prevPosition = transform.position;
+            // transform.position = moveData.origin;
+            // prevPosition = transform.position;
 
-
+            // Apply interpolation
+            if (FishNet.InstanceFinder.TimeManager != null) {
+                float interpolationFrac = (float)FishNet.InstanceFinder.TimeManager.GetTickPercentAsDouble();
+                transform.position = Vector3.Lerp(_prevState.origin, _moveData.origin, interpolationFrac);
+                
+                bool isNewTick = _moveData.frame > _lastRenderedTick;
+                if (characterRenderer != null) {
+                    characterRenderer.ApplyState(_moveData, _prevState, isNewTick);
+                }
+                if (isNewTick) _lastRenderedTick = _moveData.frame;
+            } else {
+                transform.position = _moveData.origin;
+                if (characterRenderer != null) {
+                    characterRenderer.ApplyState(_moveData, _prevState, true);
+                }
+            }
+            
             _colliderObject.transform.rotation = Quaternion.identity;
-
         }
 
         private void ApplyInputToState (ref MoveData state, InputFrame input) {

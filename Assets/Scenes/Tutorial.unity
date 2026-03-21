@@ -1110,6 +1110,26 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: -7145852457052913079, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: _addedNetworkObject
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: -7145852457052913079, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: _networkObjectCache
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: -3442111903265581877, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: SceneId
+      value: 4036483067
+      objectReference: {fileID: 0}
+    - target: {fileID: -3442111903265581877, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3442111903265581877, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: WasActiveDuringEdit
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 1208076651893476614, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
       propertyPath: meleeHitbox
       value: 
@@ -1153,6 +1173,18 @@ PrefabInstance:
     - target: {fileID: 1208076651893476614, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
       propertyPath: movementConfig.heavyMeleeHitbox.offset.z
       value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 6977237027360132335, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: WasActiveDuringEdit
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7967036886858646856, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: _addedNetworkObject
+      value: 
+      objectReference: {fileID: 0}
+    - target: {fileID: 7967036886858646856, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: _networkObjectCache
+      value: 
       objectReference: {fileID: 0}
     - target: {fileID: 8530236150118722794, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
       propertyPath: m_LocalPosition.x
@@ -1198,7 +1230,8 @@ PrefabInstance:
       propertyPath: m_Name
       value: Player 1
       objectReference: {fileID: 0}
-    m_RemovedComponents: []
+    m_RemovedComponents:
+    - {fileID: -3442111903265581877, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
     m_AddedComponents:

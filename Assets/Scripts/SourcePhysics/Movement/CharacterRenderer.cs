@@ -20,7 +20,7 @@ namespace Fragsurf.Movement {
         [SerializeField] private PlayerVFXController vfxController;
 
         // Called from SurfCharacter.Update() — reads state, never writes it
-        public void ApplyState(MoveData state, MoveData prevState) {
+        public void ApplyState(MoveData state, MoveData prevState, bool isNewTick = true) {
             
             if (animator != null) {
                 float hSpeed = new Vector3(state.velocity.x, 0, state.velocity.z).magnitude;
@@ -33,28 +33,32 @@ namespace Fragsurf.Movement {
                 bool isPunchingAnim = state.moveType == MoveType.HeavyMelee && state.meleeState != MoveData.MeleeState.Recovery;
                 animator.SetBool(punchingParameterName, isPunchingAnim);
                 
-                animator.SetBool(dashParameterName, state.dashStartedThisFrame);
-                animator.SetBool(dashDoneParameterName, prevState.isDashing && !state.isDashing);
-                animator.SetBool(doubleJumpParameterName, state.doubleJumpedThisFrame);
+                if (isNewTick) {
+                    animator.SetBool(dashParameterName, state.dashStartedThisFrame);
+                    animator.SetBool(dashDoneParameterName, prevState.isDashing && !state.isDashing);
+                    animator.SetBool(doubleJumpParameterName, state.doubleJumpedThisFrame);
+                }
             } else {
                 Debug.LogWarning("[CharacterRenderer] Animator is NULL! Please assign the Animator in the inspector.");
             }
 
             if (vfxController != null) {
-                if (state.dashStartedThisFrame) {
-                    Vector3 dashDir = new Vector3(state.velocity.x, 0, state.velocity.z).normalized;
-                    if (dashDir.sqrMagnitude < 0.001f) dashDir = transform.forward;
-                    vfxController.OnDash(dashDir);
-                }
-                
-                if (state.doubleJumpedThisFrame) {
-                    vfxController.OnDoubleJump();
-                }
+                if (isNewTick) {
+                    if (state.dashStartedThisFrame) {
+                        Vector3 dashDir = new Vector3(state.velocity.x, 0, state.velocity.z).normalized;
+                        if (dashDir.sqrMagnitude < 0.001f) dashDir = transform.forward;
+                        vfxController.OnDash(dashDir);
+                    }
+                    
+                    if (state.doubleJumpedThisFrame) {
+                        vfxController.OnDoubleJump();
+                    }
 
-                if (state.moveType == MoveType.HeavyMelee && prevState.moveType != MoveType.HeavyMelee) {
-                    vfxController.OnMeleeStart();
-                } else if (state.moveType != MoveType.HeavyMelee && prevState.moveType == MoveType.HeavyMelee) {
-                    vfxController.OnMeleeEnd();
+                    if (state.moveType == MoveType.HeavyMelee && prevState.moveType != MoveType.HeavyMelee) {
+                        vfxController.OnMeleeStart();
+                    } else if (state.moveType != MoveType.HeavyMelee && prevState.moveType == MoveType.HeavyMelee) {
+                        vfxController.OnMeleeEnd();
+                    }
                 }
             }
         }

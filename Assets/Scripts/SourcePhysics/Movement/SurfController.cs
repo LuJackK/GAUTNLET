@@ -40,7 +40,7 @@ namespace Fragsurf.Movement {
             if (_surfer.moveData.laddersEnabled && !_surfer.moveData.climbingLadder) {
 
                 // Look for ladders
-                LadderCheck (new Vector3(1f, 0.95f, 1f), _surfer.moveData.velocity * Mathf.Clamp (Time.deltaTime * 2f, 0.025f, 0.25f));
+                LadderCheck (new Vector3(1f, 0.95f, 1f), _surfer.moveData.velocity * Mathf.Clamp (_deltaTime * 2f, 0.025f, 0.25f));
 
             }
             
@@ -93,7 +93,7 @@ namespace Fragsurf.Movement {
             if (_surfer.moveData.velocity.sqrMagnitude == 0f) {
 
                 // Do collisions while standing still
-                SurfPhysics.ResolveCollisions (_surfer.collider, ref _surfer.moveData.origin, ref _surfer.moveData.velocity, _surfer.moveData.rigidbodyPushForce, 1f, _surfer.moveData.stepOffset, _surfer);
+                SurfPhysics.ResolveCollisions (_surfer.collider, ref _surfer.moveData.origin, ref _surfer.moveData.velocity, _surfer.moveData.rigidbodyPushForce, _deltaTime, 1f, _surfer.moveData.stepOffset, _surfer);
 
             } else {
 
@@ -114,7 +114,7 @@ namespace Fragsurf.Movement {
                     _surfer.moveData.origin += velThisLoop;
 
                     // don't penetrate walls
-                    SurfPhysics.ResolveCollisions (_surfer.collider, ref _surfer.moveData.origin, ref _surfer.moveData.velocity, _surfer.moveData.rigidbodyPushForce, amountThisLoop / initialVel, _surfer.moveData.stepOffset, _surfer);
+                    SurfPhysics.ResolveCollisions (_surfer.collider, ref _surfer.moveData.origin, ref _surfer.moveData.velocity, _surfer.moveData.rigidbodyPushForce, _deltaTime, amountThisLoop / initialVel, _surfer.moveData.stepOffset, _surfer);
                 }
                 
                 // Debug.Log($"[SurfController] Move End. Origin: {_surfer.moveData.origin}");
@@ -486,7 +486,7 @@ namespace Fragsurf.Movement {
             
             _surfer.moveData.ladderVelocity = _surfer.moveData.ladderClimbDir * _surfer.moveData.verticalAxis * 6f;
 
-            _surfer.moveData.velocity = Vector3.Lerp (_surfer.moveData.velocity, _surfer.moveData.ladderVelocity, Time.deltaTime * 10f);
+            _surfer.moveData.velocity = Vector3.Lerp (_surfer.moveData.velocity, _surfer.moveData.ladderVelocity, _deltaTime * 10f);
 
             LadderCheck (Vector3.one, _surfer.moveData.ladderDirection);
             

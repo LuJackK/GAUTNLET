@@ -20,6 +20,36 @@ namespace Fragsurf.Movement {
             }
         }
 
+        public override void OnStartClient() {
+            base.OnStartClient();
+            
+            if (IsOwner) {
+                // Setup local camera
+                if (_character != null && _character.viewTransform != null) {
+                    Camera cam = _character.viewTransform.GetComponentInChildren<Camera>(true);
+                    if (cam != null) cam.enabled = true;
+                    
+                    AudioListener listener = _character.viewTransform.GetComponentInChildren<AudioListener>(true);
+                    if (listener != null) listener.enabled = true;
+                }
+            } else {
+                // Disable components for remote players
+                if (_inputCollector != null) _inputCollector.enabled = false;
+                
+                if (_character != null && _character.viewTransform != null) {
+                    Camera cam = _character.viewTransform.GetComponentInChildren<Camera>(true);
+                    if (cam != null) cam.enabled = false;
+                    
+                    AudioListener listener = _character.viewTransform.GetComponentInChildren<AudioListener>(true);
+                    if (listener != null) listener.enabled = false;
+                }
+                
+                // Also disable PlayerAiming (don't want remote inputs spinning our view)
+                PlayerAiming aiming = GetComponentInChildren<PlayerAiming>();
+                if (aiming != null) aiming.enabled = false;
+            }
+        }
+
         public override void OnStartNetwork() {
             base.OnStartNetwork();
             
@@ -54,7 +84,7 @@ namespace Fragsurf.Movement {
 
                 // Simulate locally
                 float dt = (float)TimeManager.TickDelta;
-                _rollback.ReceiveLocalInput(input, dt);
+                _rollback.Tick(input, dt);
 
             } else {
                 // Non-owners wait for Observe logic
@@ -64,9 +94,11 @@ namespace Fragsurf.Movement {
 
         [ServerRpc]
         private void SendInputServerRpc(InputFrame input) {
-            // Apply on Server
-            float dt = (float)TimeManager.TickDelta;
-            _rollback.ReceiveLocalInput(input, dt);
+            // Apply on Server (Skip if we are the owner, as we already simulated in OnTick)
+            if (!IsOwner) {
+                float dt = (float)TimeManager.TickDelta;
+                _rollback.Tick(input, dt);
+            }
 
             // Broadcast to other clients
             BroadcastInputObserversRpc(input);

@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using Fragsurf.TraceUtil;
 
 namespace Fragsurf.Movement {
@@ -30,7 +30,7 @@ namespace Fragsurf.Movement {
         /// <param name="velocity"></param>
         /// http://www.00jknight.com/blog/unity-character-controller
         
-        public static void ResolveCollisions (Collider collider, ref Vector3 origin, ref Vector3 velocity, float rigidbodyPushForce, float velocityMultiplier = 1f, float stepOffset = 0f, ISurfControllable surfer = null) {
+        public static void ResolveCollisions (Collider collider, ref Vector3 origin, ref Vector3 velocity, float rigidbodyPushForce, float deltaTime, float velocityMultiplier = 1f, float stepOffset = 0f, ISurfControllable surfer = null) {
 
             // manual collision resolving
             int numOverlaps = 0;
@@ -63,7 +63,7 @@ namespace Fragsurf.Movement {
                     
                     // Step offset
                     if (stepOffset > 0f && surfer != null && surfer.moveData.useStepOffset)
-                        if (StepOffset (collider, _colliders [i], ref origin, ref velocity, rigidbodyPushForce, velocityMultiplier, stepOffset, direction, distance, forwardVelocity, surfer))
+                        if (StepOffset (collider, _colliders [i], ref origin, ref velocity, rigidbodyPushForce, deltaTime, velocityMultiplier, stepOffset, direction, distance, forwardVelocity, surfer))
                             return;
 
                     // Handle collision
@@ -84,7 +84,7 @@ namespace Fragsurf.Movement {
 
         }
 
-        public static bool StepOffset (Collider collider, Collider otherCollider, ref Vector3 origin, ref Vector3 velocity, float rigidbodyPushForce, float velocityMultiplier, float stepOffset, Vector3 direction, float distance, Vector3 forwardVelocity, ISurfControllable surfer) {
+        public static bool StepOffset (Collider collider, Collider otherCollider, ref Vector3 origin, ref Vector3 velocity, float rigidbodyPushForce, float deltaTime, float velocityMultiplier, float stepOffset, Vector3 direction, float distance, Vector3 forwardVelocity, ISurfControllable surfer) {
 
             // Return if step offset is 0
             if (stepOffset <= 0f)
@@ -149,7 +149,7 @@ namespace Fragsurf.Movement {
             // Actually move
             if (origin != endOrigin && forwardDistance > 0f) {
 
-                origin = endOrigin + forwardDirection * forwardDistance * Time.deltaTime;
+                origin = endOrigin + forwardDirection * forwardDistance * deltaTime;
                 return true;
 
             } else

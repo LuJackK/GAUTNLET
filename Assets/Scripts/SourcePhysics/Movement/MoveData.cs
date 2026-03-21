@@ -12,6 +12,8 @@ namespace Fragsurf.Movement {
 
     public class MoveData {
         
+        public int frame = -1;
+        
         ///// Types /////
 
         public enum MeleeState { None, Charging, Lunging, Recovery }

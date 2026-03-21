@@ -14033,6 +14033,10 @@ GameObject:
   - component: {fileID: 1034542312309700504}
   - component: {fileID: 8719693943810852010}
   - component: {fileID: 3472746310373338021}
+  - component: {fileID: -7145852457052913079}
+  - component: {fileID: 7967036886858646856}
+  - component: {fileID: -8892953357829325516}
+  - component: {fileID: -4746967813159440358}
   m_Layer: 0
   m_Name: Player 1
   m_TagString: Untagged
@@ -14406,7 +14410,6 @@ MonoBehaviour:
       radius: 0
       offset: {x: 0, y: 1, z: 0}
   slideTrailRenderer: {fileID: 5820374054595068741}
-  trailFadeSpeed: 2
   trailOffset: {x: 0, y: -0.85, z: -1.5}
   dashBurstPrefab: {fileID: 1869457988569095533}
   dashBurstCount: 20
@@ -14437,6 +14440,64 @@ MonoBehaviour:
   dashDoneParameterName: DashDone
   doubleJumpParameterName: DoubleJump
   vfxController: {fileID: 8719693943810852010}
+--- !u!114 &-7145852457052913079
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9017601728834380773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a6a39c46bf52104ba8efe3100bce3f7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishNet.Runtime::FishNet.Object.EmptyNetworkBehaviour
+  _componentIndexCache: 0
+  _addedNetworkObject: {fileID: 0}
+  _networkObjectCache: {fileID: 0}
+--- !u!114 &7967036886858646856
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9017601728834380773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4cdddf4e87be0ea44af7863ae05dd036, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Movement.NetworkedCharacter
+  _componentIndexCache: 1
+  _addedNetworkObject: {fileID: 0}
+  _networkObjectCache: {fileID: 0}
+  _character: {fileID: 1208076651893476614}
+  _rollback: {fileID: -8892953357829325516}
+  _inputCollector: {fileID: -4746967813159440358}
+--- !u!114 &-8892953357829325516
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9017601728834380773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9810e0e77b5383648813c155acff0e3a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Movement.RollbackManager
+  _character: {fileID: 1208076651893476614}
+--- !u!114 &-4746967813159440358
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9017601728834380773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 05bacbce0fbb697479afcadeb32a505b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Movement.LocalInputCollector
 --- !u!1 &9042330015758534429
 GameObject:
   m_ObjectHideFlags: 0
