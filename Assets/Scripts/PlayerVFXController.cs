@@ -8,7 +8,6 @@ namespace Fragsurf.Movement {
 
         [Header("References")]
         [SerializeField] private SurfCharacter surfCharacter;
-        [SerializeField] private MovementConfig movementConfig;
 
         [Header("Slide Trail Settings")]
         [SerializeField] private TrailRenderer slideTrailRenderer;
@@ -30,11 +29,10 @@ namespace Fragsurf.Movement {
         private List<ParticleSystem> meleePool = new List<ParticleSystem>();
         private ParticleSystem currentMeleeParticles;
 
-        private bool IsSliding => surfCharacter.moveData.grounded && surfCharacter.moveData.slidingEnabled && surfCharacter.moveData.sliding;
+        private bool IsSliding => surfCharacter.moveData.sliding && surfCharacter.moveData.slidingEnabled;
 
         private void Start() {
             if (surfCharacter == null) surfCharacter = GetComponent<SurfCharacter>();
-            if (movementConfig == null && surfCharacter != null) movementConfig = surfCharacter.movementConfig;
 
             if (slideTrailRenderer != null) {
                 slideTrailRenderer.emitting = false;
@@ -52,8 +50,24 @@ namespace Fragsurf.Movement {
             slideTrailRenderer.emitting = sliding;
 
             if (sliding) {
-                slideTrailRenderer.transform.position = surfCharacter.transform.position + trailOffset;
-                slideTrailRenderer.transform.rotation = Quaternion.Euler(-90, 0, 0);
+                // Raycast down to find exact ground point for the trail
+                Vector3 rayStart = surfCharacter.transform.position + Vector3.up * 0.1f;
+                LayerMask groundMask = SurfPhysics.groundLayerMask;
+                
+                if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, 2f, groundMask, QueryTriggerInteraction.Ignore)) {
+                    // Snap to surface with a tiny offset to prevent clipping
+                    slideTrailRenderer.transform.position = hit.point + hit.normal * 0.02f;
+                    
+                    // Align with surface normal and movement direction
+                    Vector3 forward = surfCharacter.moveData.velocity.normalized;
+                    if (forward.sqrMagnitude < 0.001f) forward = surfCharacter.transform.forward;
+                    slideTrailRenderer.transform.rotation = Quaternion.LookRotation(forward, hit.normal);
+                } else {
+                    // Fallback if raycast fails
+                    Vector3 spawnPos = surfCharacter.lowerVfxSpawnPoint != null ? surfCharacter.lowerVfxSpawnPoint.position : surfCharacter.transform.position + trailOffset;
+                    slideTrailRenderer.transform.position = spawnPos;
+                    slideTrailRenderer.transform.rotation = Quaternion.Euler(-90, 0, 0);
+                }
             }
         }
 

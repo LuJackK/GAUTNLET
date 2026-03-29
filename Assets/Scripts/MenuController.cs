@@ -1,5 +1,4 @@
 using UnityEngine;
-using UnityEngine.SceneManagement;
 using TMPro;
 using FishNet;
 using FishNet.Managing;
@@ -37,8 +36,33 @@ public class MenuController : MonoBehaviour
 
     public void OnTutorialClicked()
     {
-        Debug.Log("Loading Tutorial Scene...");
-        UnityEngine.SceneManagement.SceneManager.LoadScene(tutorialSceneName);
+        if (networkManager == null) return;
+
+        Debug.Log("Starting Tutorial (Local Host)...");
+        networkManager.ServerManager.StartConnection();
+        networkManager.ClientManager.StartConnection();
+        
+        if (menuCanvas != null) menuCanvas.SetActive(false);
+
+        StartCoroutine(LoadTutorialWhenStarted());
+    }
+
+    private System.Collections.IEnumerator LoadTutorialWhenStarted()
+    {
+        while (networkManager != null && !networkManager.ServerManager.Started)
+        {
+            yield return null;
+        }
+
+        if (networkManager != null)
+        {
+            // Use global scene loading so late joiners also receive this scene.
+            SceneLookupData lookup = new SceneLookupData(tutorialSceneName);
+            SceneLoadData sld = new SceneLoadData(lookup);
+            sld.ReplaceScenes = ReplaceOption.All;
+            sld.PreferredActiveScene = new PreferredScene(lookup);
+            networkManager.SceneManager.LoadGlobalScenes(sld);
+        }
     }
 
     public void OnJoinClicked()
@@ -84,7 +108,10 @@ public class MenuController : MonoBehaviour
             Debug.Log($"Server started! Loading scene: {gameMapSceneName}...");
             SceneLookupData lookup = new SceneLookupData(gameMapSceneName);
             SceneLoadData sld = new SceneLoadData(lookup);
-            networkManager.SceneManager.LoadConnectionScenes(sld);
+            // Global load keeps host and future joining clients on the same map.
+            sld.ReplaceScenes = ReplaceOption.All;
+            sld.PreferredActiveScene = new PreferredScene(lookup);
+            networkManager.SceneManager.LoadGlobalScenes(sld);
         }
     }
 }

@@ -79,6 +79,7 @@ namespace FishNet.Example
         /// EventSystem for the project.
         /// </summary>
         private EventSystem _eventSystem;
+    private bool _loggedMissingEventSystem;
 #endif
         #endregion
 
@@ -130,9 +131,8 @@ namespace FishNet.Example
         {
 #if !ENABLE_INPUT_SYSTEM
             SetEventSystem();
-            BaseInputModule inputModule = FindObjectOfType<BaseInputModule>();
-            if (inputModule == null)
-                gameObject.AddComponent<StandaloneInputModule>();
+            if (_eventSystem == null)
+                Debug.LogWarning("NetworkHudCanvases: HUD interaction requires a scene-level EventSystem + input module.", this);
 #else
             _serverIndicator.transform.gameObject.SetActive(false);
             _clientIndicator.transform.gameObject.SetActive(false);
@@ -229,8 +229,11 @@ namespace FishNet.Example
             if (_eventSystem != null)
                 return;
             _eventSystem = FindObjectOfType<EventSystem>();
-            if (_eventSystem == null)
-                _eventSystem = gameObject.AddComponent<EventSystem>();
+            if (_eventSystem == null && !_loggedMissingEventSystem)
+            {
+                _loggedMissingEventSystem = true;
+                Debug.LogWarning("NetworkHudCanvases: No scene EventSystem found. Add one at scene-level; runtime auto-creation is disabled to prevent duplicates.", this);
+            }
 #endif
         }
 

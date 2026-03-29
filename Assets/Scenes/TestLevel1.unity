@@ -1958,6 +1958,14 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
+    - target: {fileID: 7837431466360135714, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: SceneId
+      value: 2133769919
+      objectReference: {fileID: 0}
+    - target: {fileID: 7837431466360135714, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: WasActiveDuringEdit
+      value: 1
+      objectReference: {fileID: 0}
     - target: {fileID: 8530236150118722794, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
       propertyPath: m_LocalPosition.x
       value: -25.7
@@ -2001,6 +2009,14 @@ PrefabInstance:
     - target: {fileID: 9017601728834380773, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
       propertyPath: m_Name
       value: Player
+      objectReference: {fileID: 0}
+    - target: {fileID: 9098566495787033709, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0.20039558
+      objectReference: {fileID: 0}
+    - target: {fileID: 9098566495787033709, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: -0.80999994
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

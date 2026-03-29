@@ -46,7 +46,6 @@ namespace Fragsurf.Movement {
         public bool useStepOffset = false;
         public float stepOffset = 0.35f;
 
-        [Header("VFX")]
 
         [Header("VFX Spawn Points")]
         public Transform lowerVfxSpawnPoint;  // For feet/slide effects
@@ -70,7 +69,6 @@ namespace Fragsurf.Movement {
         private GameObject _groundObject;
         private Vector3 _baseVelocity;
         private Collider _collider;
-        private Vector3 _angles;
         private Vector3 _startPosition;
         private Vector3 _initialRenderMeshLocalPos;
         private Vector3 _initialPlayerHitboxLocalPos;
@@ -165,8 +163,19 @@ namespace Fragsurf.Movement {
 
             prevPosition = transform.position;
 
-            if (viewTransform == null)
-                viewTransform = Camera.main.transform;
+            if (viewTransform == null) {
+                Camera localCamera = GetComponentInChildren<Camera>(true);
+                if (localCamera != null) {
+                    viewTransform = localCamera.transform;
+                    Debug.Log($"[SurfCharacter] Auto-assigned local viewTransform from child camera '{localCamera.name}'.", this);
+                } else if (Camera.main != null) {
+                    // Final fallback for compatibility; this can be unsafe in multiplayer if multiple cameras are tagged MainCamera.
+                    viewTransform = Camera.main.transform;
+                    Debug.LogWarning("[SurfCharacter] viewTransform missing; falling back to Camera.main. Assign a per-player viewTransform to avoid multiplayer camera binding issues.", this);
+                } else {
+                    Debug.LogError("[SurfCharacter] viewTransform is missing and no camera was found in this player hierarchy.", this);
+                }
+            }
 
             if (playerRotationTransform == null && transform.childCount > 0)
                 playerRotationTransform = transform.GetChild (0);
@@ -271,26 +280,68 @@ namespace Fragsurf.Movement {
                 _initialPlayerHitboxLocalPos = playerHitbox.localPosition;
 
             // Combat Setup
+            if (meleeHitbox == null)
+                meleeHitbox = GetComponentInChildren<Hitbox>(true);
+            if (playerHurtboxComponent == null)
+                playerHurtboxComponent = GetComponentInChildren<Hurtbox>(true);
+
             if (meleeHitbox != null && movementConfig != null) {
-                meleeHitbox.definition = movementConfig.heavyMeleeHitbox;
-                meleeHitbox.targetLayer = enemyLayerMask;
+                meleeHitbox.ConfigureFromConfig(movementConfig.heavyMeleeHitbox, enemyLayerMask);
                 meleeHitbox.Deactivate();
             }
 
             if (playerHurtboxComponent != null && movementConfig != null) {
-                playerHurtboxComponent.definition = movementConfig.playerHurtbox;
+                playerHurtboxComponent.ConfigureFromConfig(movementConfig.playerHurtbox);
             }
 
-            _inputCollector = gameObject.AddComponent<LocalInputCollector>();
+            _hasNetworkedCharacter = GetComponent<NetworkedCharacter>() != null;
+
+            // Step 7: Input ownership is managed by NetworkedCharacter in multiplayer.
+            // Legacy fallback: only auto-create if no NetworkedCharacter exists (singleplayer/legacy).
+            _inputCollector = GetComponent<LocalInputCollector>();
+            if (_inputCollector == null && !_hasNetworkedCharacter) {
+                // Only add in non-networked sessions to avoid conflicts with NetworkedCharacter.
+                _inputCollector = gameObject.AddComponent<LocalInputCollector>();
+                Debug.Log("[SurfCharacter] Auto-created LocalInputCollector (legacy singleplayer path).", this);
+            } else if (_inputCollector == null && _hasNetworkedCharacter) {
+                // Multiplayer: NetworkedCharacter owns input collector setup.
+                Debug.Log("[SurfCharacter] Input authority managed by NetworkedCharacter (multiplayer path).", this);
+            }
             _prevState = _moveData.Clone();
 
         }
 
         private LocalInputCollector _inputCollector;
+        private bool _hasNetworkedCharacter;
         private int _frameCounter;
         private int _lastRenderedTick = -1;
+        private bool _loggedSimulationNotReady;
 
-        public MoveData SimulationTick(MoveData state, InputFrame input, float deltaTime) {
+        public bool IsSimulationReady {
+            get {
+                return _colliderObject != null &&
+                       _cameraWaterCheckObject != null &&
+                       _cameraWaterCheck != null &&
+                       _collider != null &&
+                       movementConfig != null &&
+                       viewTransform != null;
+            }
+        }
+
+        public MoveData SimulationTick(MoveData state, InputFrame input, float deltaTime, bool allowGameplaySideEffects = true) {
+            if (state == null)
+                state = _moveData != null ? _moveData : new MoveData();
+
+            if (!IsSimulationReady) {
+                state.frame = input.frame;
+                if (!_loggedSimulationNotReady) {
+                    _loggedSimulationNotReady = true;
+                    Debug.LogWarning("[SurfCharacter] SimulationTick skipped: character runtime is not initialized yet.", this);
+                }
+                return state;
+            }
+
+            _loggedSimulationNotReady = false;
             
             state.frame = input.frame;
             _prevState = state.Clone();
@@ -338,14 +389,14 @@ namespace Fragsurf.Movement {
 
             _controller.ProcessMovement (this, movementConfig, deltaTime);
 
-            ProcessHitboxes(ref state);
+            ProcessHitboxes(ref state, allowGameplaySideEffects);
 
             // characterRenderer.ApplyState moved to Update() to avoid redundant calls during rollback resimulations
 
             return state;
         }
 
-        private void ProcessHitboxes(ref MoveData state) {
+        private void ProcessHitboxes(ref MoveData state, bool allowGameplaySideEffects) {
             if (meleeHitbox != null && meleeHitbox.isActive) {
                 Hurtbox hit = meleeHitbox.CheckHit(state.origin, state);
                 if (hit != null) {
@@ -362,7 +413,9 @@ namespace Fragsurf.Movement {
                         
                         targetSurfer.moveData.velocity += attackDirection * meleeHitbox.definition.hitForce;
                     }
-                    hit.TakeHit(meleeHitbox); // Trigger VFX/audio
+                    if (allowGameplaySideEffects) {
+                        hit.TakeHit(meleeHitbox); // Trigger VFX/audio
+                    }
                 }
             }
         }
@@ -481,8 +534,17 @@ namespace Fragsurf.Movement {
             state.verticalAxis   = input.stickY / 127f;
             state.horizontalAxis = input.stickX / 127f;
             state.wishJump       = input.HasButton(InputFrame.BTN_JUMP);
-            state.wishJumpDown   = input.IsJustPressed(InputFrame.BTN_JUMP);
-            state.wishDash       = input.IsJustPressed(InputFrame.BTN_DASH);
+            bool jumpPressedEdge = input.IsJustPressed(InputFrame.BTN_JUMP);
+            bool dashPressedEdge = input.IsJustPressed(InputFrame.BTN_DASH);
+
+            state.wishJumpDown   = jumpPressedEdge && state.lastConsumedJumpPressFrame != input.frame;
+            if (state.wishJumpDown)
+                state.lastConsumedJumpPressFrame = input.frame;
+
+            state.wishDash       = dashPressedEdge && state.lastConsumedDashPressFrame != input.frame;
+            if (state.wishDash)
+                state.lastConsumedDashPressFrame = input.frame;
+
             state.wishMelee      = input.HasButton(InputFrame.BTN_MELEE);
             state.crouching      = input.HasButton(InputFrame.BTN_CROUCH);
             
@@ -505,7 +567,7 @@ namespace Fragsurf.Movement {
             else if (moveBack)
                 state.forwardMove = -moveConfig.acceleration;
             
-            state.viewAngles = _angles;
+            state.viewAngles = new Vector3(input.LookPitch, input.LookYaw, 0f);
 
         }
 
@@ -538,6 +600,13 @@ namespace Fragsurf.Movement {
 
         }
 
+        private static float NormalizeSignedAngle(float angle) {
+            angle %= 360f;
+            if (angle > 180f)
+                angle -= 360f;
+            return angle;
+        }
+
         private void OnTriggerEnter (Collider other) {
             
             if (!triggers.Contains (other))
@@ -553,6 +622,10 @@ namespace Fragsurf.Movement {
         }
 
         private void OnCollisionStay (Collision collision) {
+            // Keep network simulation authoritative and deterministic.
+            // Ignore out-of-band rigidbody impulses in networked mode.
+            if (_hasNetworkedCharacter)
+                return;
 
             if (collision.rigidbody == null)
                 return;
@@ -596,7 +669,7 @@ namespace Fragsurf.Movement {
                         state.hasHitTarget = false;
                         
                         // Calculate Lunge Direction
-                        Vector3 lungeDir = viewTransform.forward;
+                        Vector3 lungeDir = Quaternion.Euler(state.viewAngles.x, state.viewAngles.y, 0f) * Vector3.forward;
                         if (state.grounded && lungeDir.y < 0) {
                             lungeDir.y = 0;
                             lungeDir.Normalize();
@@ -640,6 +713,7 @@ namespace Fragsurf.Movement {
             }
         }
 
+        [System.Obsolete("Legacy method. Melee hit detection now handled by Hitbox component. Use ProcessHitboxes() instead.", false)]
         private void OnMeleeHit(Hurtbox target) {
             Debug.Log($"[SurfCharacter] OnMeleeHit Triggered! Target: {target.name}");
             _moveData.hasHitTarget = true;
@@ -649,6 +723,7 @@ namespace Fragsurf.Movement {
             _moveData.velocity.z = 0f;
         }
 
+        [System.Obsolete("Legacy method. Melee hit detection now handled by Hitbox component. Use ProcessHitboxes() instead.", false)]
         private void CheckMeleeHit()
         {
             // Removed legacy hit detection logic

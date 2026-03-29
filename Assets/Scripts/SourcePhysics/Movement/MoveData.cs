@@ -39,6 +39,7 @@ namespace Fragsurf.Movement {
         public float horizontalAxis = 0f;
         public bool wishJump = false;
         public bool wishJumpDown = false;
+        public int lastConsumedJumpPressFrame = -1;
         public bool crouching = false;
         public bool jumping = false;
         public float crouchLerp = 0f;
@@ -53,6 +54,7 @@ namespace Fragsurf.Movement {
         public bool isDashing = false;
         public bool canAirDash = true;
         public bool wishDash = false;
+        public int lastConsumedDashPressFrame = -1;
         public int jumpCount = 0;
         public float jumpTimer = 0f;
 

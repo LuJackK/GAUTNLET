@@ -6,6 +6,12 @@ namespace Fragsurf.Combat {
 
     public class Hitbox : MonoBehaviour {
 
+        [Header("Definition Source")]
+        [Tooltip("If true, uses this component's Definition values. If false, allows SurfCharacter to overwrite from MovementConfig.")]
+        [SerializeField] private bool useComponentDefinition = true;
+        [Tooltip("If true, uses this component's Target Layer. If false, allows SurfCharacter to overwrite from MovementConfig/enemyLayerMask.")]
+        [SerializeField] private bool useComponentTargetLayer = true;
+
         public HitboxDefinition definition;
         public LayerMask targetLayer;
         public bool isActive = false;
@@ -21,6 +27,14 @@ namespace Fragsurf.Combat {
         public void Deactivate() {
             isActive = false;
             _hitObjects.Clear();
+        }
+
+        public void ConfigureFromConfig(HitboxDefinition configDefinition, LayerMask configTargetLayer) {
+            if (!useComponentDefinition)
+                definition = configDefinition;
+
+            if (!useComponentTargetLayer)
+                targetLayer = configTargetLayer;
         }
 
         public Hurtbox CheckHit(Vector3 attackerOrigin, MoveData attackerState) {

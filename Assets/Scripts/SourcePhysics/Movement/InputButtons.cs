@@ -1,6 +1,10 @@
 ﻿
 namespace Fragsurf.Movement {
 
+    /// <summary>
+    /// Legacy input button enumeration. Use InputFrame bit flags directly instead.
+    /// </summary>
+    [System.Obsolete("Use InputFrame button constants (BTN_JUMP, BTN_DASH, etc.) directly. This enum is obsolete.", false)]
     [System.Flags]
     public enum InputButtons {
         None = 0,

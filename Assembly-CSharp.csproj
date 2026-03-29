@@ -65,6 +65,7 @@
     <Compile Include="Assets\Scripts\SourcePhysics\CameraWaterCheck.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\TraceUtil\Tracer.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Water.cs" />
+    <Compile Include="Assets\Scripts\Networking\PlayerSpawnService.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Movement\SurfController.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Movement\InputFrame.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Movement\RollbackManager.cs" />
@@ -79,6 +80,7 @@
     <Compile Include="Assets\Scripts\SourcePhysics\Movement\SurfPhysics.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Movement\LocalInputCollector.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Extensions\VectorExtensions.cs" />
+    <Compile Include="Assets\Scripts\Networking\SpawnPoint.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Movement\MovementConfig.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Combat\Hitbox.cs" />
@@ -89,6 +91,7 @@
     <Compile Include="Assets\Scripts\SourcePhysics\PlayerAiming.cs" />
     <Compile Include="Assets\Scripts\StaminaUI.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\TraceUtil\Trace.cs" />
+    <Compile Include="Assets\Scripts\UI\SingleEventSystemGuard.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Movement\SurfCharacter.cs" />
     <Compile Include="Assets\Scripts\SourcePhysics\Movement\NetworkedCharacter.cs" />
   </ItemGroup>

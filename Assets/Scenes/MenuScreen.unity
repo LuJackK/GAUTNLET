@@ -687,6 +687,14 @@ PrefabInstance:
       propertyPath: '_defaultConditions.Array.data[1]'
       value: 
       objectReference: {fileID: 11400000, guid: 2033f54fd2794464bae08fa5a55c8996, type: 2}
+    - target: {fileID: 1312352244, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
+      propertyPath: m_AnchoredPosition.y
+      value: -52.69995
+      objectReference: {fileID: 0}
+    - target: {fileID: 4393252310584637056, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 7443408887813606049, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
       propertyPath: m_LocalPosition.x
       value: 8.47253
@@ -738,7 +746,7 @@ PrefabInstance:
     - target: {fileID: 7443408887813606060, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
       propertyPath: _playerPrefab
       value: 
-      objectReference: {fileID: -3442111903265581877, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
+      objectReference: {fileID: 7837431466360135714, guid: ab2c83ca500506b4e9b177fd3b2bc7db, type: 3}
     - target: {fileID: 7443408887813606060, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
       propertyPath: _addToDefaultScene
       value: 0

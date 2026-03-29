@@ -27,6 +27,21 @@ namespace Fragsurf.Movement {
 
         Vector3 groundNormal = Vector3.up;
 
+        private Quaternion GetLookYawRotation() {
+            float yaw = (_surfer != null && _surfer.moveData != null)
+                ? _surfer.moveData.viewAngles.y
+                : 0f;
+            return Quaternion.Euler(0f, yaw, 0f);
+        }
+
+        private Vector3 GetLookForward() {
+            return GetLookYawRotation() * Vector3.forward;
+        }
+
+        private Vector3 GetLookRight() {
+            return GetLookYawRotation() * Vector3.right;
+        }
+
         /// <summary>
         /// 
         /// </summary>
@@ -188,8 +203,10 @@ namespace Fragsurf.Movement {
                         _surfer.moveData.canAirDash = false; // Limit to one per air instance
                         
                         // Set velocity (snappy redirect)
-                        Vector3 dashDir = (_surfer.moveData.verticalAxis * playerTransform.forward + _surfer.moveData.horizontalAxis * playerTransform.right).normalized;
-                        if (dashDir.sqrMagnitude == 0) dashDir = playerTransform.forward;
+                        Vector3 lookForward = GetLookForward();
+                        Vector3 lookRight = GetLookRight();
+                        Vector3 dashDir = (_surfer.moveData.verticalAxis * lookForward + _surfer.moveData.horizontalAxis * lookRight).normalized;
+                        if (dashDir.sqrMagnitude == 0) dashDir = lookForward;
                         
                         _surfer.moveData.velocity = dashDir * _config.airDashVelocity;
                     }
@@ -263,7 +280,8 @@ namespace Fragsurf.Movement {
                     float decel = crouching ? _config.crouchDeceleration : _config.deceleration;
                     
                     // Get movement directions
-                    Vector3 forward = Vector3.Cross (groundNormal, -playerTransform.right);
+                    Vector3 lookRight = GetLookRight();
+                    Vector3 forward = Vector3.Cross (groundNormal, -lookRight);
                     Vector3 right = Vector3.Cross (groundNormal, forward);
 
                     float speed = _config.walkSpeed;
@@ -369,7 +387,9 @@ namespace Fragsurf.Movement {
             ApplyFriction (1f, true, false);
 
             // Get movement directions
-            Vector3 forward = Vector3.Cross (groundNormal, -playerTransform.right);
+            Vector3 lookForward = GetLookForward();
+            Vector3 lookRight = GetLookRight();
+            Vector3 forward = Vector3.Cross (groundNormal, -lookRight);
             Vector3 right = Vector3.Cross (groundNormal, forward);
 
             float speed = _config.underwaterSwimSpeed;
@@ -407,8 +427,9 @@ namespace Fragsurf.Movement {
             _surfer.moveData.velocity.y = Mathf.Min (Mathf.Max (0f, yVelocityNew) + yVelStored, speed);
 
             // Jumping out of water
-            bool movingForwards = playerTransform.InverseTransformVector (_surfer.moveData.velocity).z > 0f;
-            Trace waterJumpTrace = TraceBounds (playerTransform.position, playerTransform.position + playerTransform.forward * 0.1f, SurfPhysics.groundLayerMask);
+            bool movingForwards = Vector3.Dot(_surfer.moveData.velocity, lookForward) > 0f;
+            Vector3 traceOrigin = _surfer.moveData.origin;
+            Trace waterJumpTrace = TraceBounds (traceOrigin, traceOrigin + lookForward * 0.1f, SurfPhysics.groundLayerMask);
             if (waterJumpTrace.hitCollider != null && Vector3.Angle (Vector3.up, waterJumpTrace.planeNormal) >= _config.slopeLimit && _surfer.moveData.wishJump && !_surfer.moveData.cameraUnderwater && movingForwards)
                 _surfer.moveData.velocity.y = Mathf.Max (_surfer.moveData.velocity.y, _config.jumpForce);
 
@@ -611,8 +632,11 @@ namespace Fragsurf.Movement {
             wishDir = Vector3.zero;
             wishSpeed = 0f;
 
-            Vector3 forward = _surfer.forward,
-                right = _surfer.right;
+            // IMPORTANT FOR NETWORK DETERMINISM:
+            // Use moveData.viewAngles (input-driven/replicated) rather than live transform
+            // orientation, which may differ between client render frames and server tick frames.
+            Vector3 forward = GetLookForward();
+            Vector3 right = GetLookRight();
 
             forward [1] = 0;
             right [1] = 0;
