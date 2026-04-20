@@ -5117,8 +5117,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1182372079856243428}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.037328232, y: 0.9320263, z: 0.34616867, w: -0.10050273}
-  m_LocalPosition: {x: 0.20039558, y: -0.80999994, z: 0.9183912}
+  m_LocalRotation: {x: 0.058430046, y: 0.93109506, z: 0.17197919, w: -0.31634015}
+  m_LocalPosition: {x: 0.8974905, y: -0.563468, z: 1.1683464}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -6283,7 +6283,7 @@ Transform:
   m_GameObject: {fileID: 3357153641136484239}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0.514, y: 0.292, z: 0.218}
+  m_LocalPosition: {x: 0.324, y: 0.27, z: -0.023}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -6303,16 +6303,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Combat.Hitbox
   useComponentDefinition: 1
   useComponentTargetLayer: 1
+  enableDebugLogging: 1
   definition:
     id: 
     shape: 2
     size: {x: 0.48, y: 1.09, z: 0.52}
-    radius: 1.2
+    radius: 1.3
     offset: {x: 0, y: 0, z: 0}
     rotationOffset: {x: 0, y: 0, z: 0}
     damage: 0
     hitForce: 0
-    coneAngle: 0.85
+    coneAngle: 0.8
   targetLayer:
     serializedVersion: 2
     m_Bits: 64
@@ -7850,6 +7851,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Combat.Hurtbox
   useComponentDefinition: 1
+  enableDebugLogging: 1
   definition:
     id: 0
     shape: 0
@@ -7917,8 +7919,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6286469610739894529}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.037328243, y: 0.9320263, z: 0.3461687, w: -0.100502744}
-  m_LocalPosition: {x: 0.20039558, y: -0.80999994, z: 0.9183912}
+  m_LocalRotation: {x: 0.05843004, y: 0.93109506, z: 0.17197919, w: -0.31634012}
+  m_LocalPosition: {x: 0.8974905, y: -0.563468, z: 1.1683464}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -8001,7 +8003,7 @@ MonoBehaviour:
     SplineCurvature: 0.387
   RecenteringTarget: 2
   HorizontalAxis:
-    Value: -167.69084
+    Value: -142.46954
     Center: 0
     Range: {x: -180, y: 180}
     Wrap: 1
@@ -8011,7 +8013,7 @@ MonoBehaviour:
       Time: 2
     Restrictions: 0
   VerticalAxis:
-    Value: -10
+    Value: -7.419484
     Center: 17.5
     Range: {x: -10, y: 45}
     Wrap: 0
@@ -9224,7 +9226,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8530236150118722794}
-  - component: {fileID: 25931229116775349}
   - component: {fileID: 4170459113843981149}
   - component: {fileID: 3443596148177788844}
   - component: {fileID: 1208076651893476614}
@@ -9261,29 +9262,6 @@ Transform:
   - {fileID: 7491862722003380337}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!136 &25931229116775349
-CapsuleCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 9017601728834380773}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 0
-  serializedVersion: 2
-  m_Radius: 0.5
-  m_Height: 1
-  m_Direction: 1
-  m_Center: {x: 0, y: 0, z: 0}
 --- !u!114 &4170459113843981149
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9438,10 +9416,10 @@ MonoBehaviour:
     crouchDeceleration: 4
     crouchFriction: 3
     minimumSlideSpeed: 8
-    maximumSlideSpeed: 50
-    slideSpeedMultiplier: 1.8
+    maximumSlideSpeed: 30
+    slideSpeedMultiplier: 1.5
     slideFriction: 8
-    downhillSlideSpeedMultiplier: 2
+    downhillSlideSpeedMultiplier: 1.8
     slideDelay: 0.1
     slideSteerForce: 0.7
     slideTiltAngle: 40
@@ -9453,16 +9431,16 @@ MonoBehaviour:
     underwaterFriction: 2
     underwaterGravity: 6
     underwaterVelocityDampening: 2
-    heavyMeleeChargeTime: 1
+    heavyMeleeChargeTime: 1.3
     heavyMeleeMinCharge: 0.3
-    heavyMeleeBaseSpeed: 25
-    heavyMeleeSpeedMultiplier: 1.5
-    heavyMeleeLungeDuration: 0.4
-    heavyMeleeRecoveryDuration: 0.5
+    heavyMeleeBaseSpeed: 17
+    heavyMeleeSpeedMultiplier: 1.3
+    heavyMeleeLungeDuration: 0.7
+    heavyMeleeRecoveryDuration: 0.05
     heavyMeleeDrag: 0
     heavyMeleeRecoveryDrag: 10
     heavyMeleeTurnClamp: 1.5
-    heavyMeleeCooldown: 2
+    heavyMeleeCooldown: 1.5
     heavyMeleeChargeVelocityRetention: 0.465
     heavyMeleeChargeFriction: 6
     heavyMeleeHitbox:
@@ -9486,6 +9464,7 @@ MonoBehaviour:
   enemyLayerMask:
     serializedVersion: 2
     m_Bits: 64
+  _combatDebugLogging: 1
 --- !u!114 &1034542312309700504
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9505,6 +9484,7 @@ MonoBehaviour:
   minYRotation: -90
   maxYRotation: 90
   maxTurnSpeed: 20.72
+  requireLocalAuthority: 1
   punchDamping: 9
   punchSpringConstant: 65
   punchAngle: {x: 0, y: 0}
@@ -9568,7 +9548,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Object.EmptyNetworkBehaviour
   _componentIndexCache: 0
   _addedNetworkObject: {fileID: 7837431466360135714}
-  _networkObjectCache: {fileID: 0}
+  _networkObjectCache: {fileID: 7837431466360135714}
 --- !u!114 &7967036886858646856
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9583,33 +9563,17 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Movement.NetworkedCharacter
   _componentIndexCache: 1
   _addedNetworkObject: {fileID: 7837431466360135714}
-  _networkObjectCache: {fileID: 0}
+  _networkObjectCache: {fileID: 7837431466360135714}
   _character: {fileID: 1208076651893476614}
   _rollback: {fileID: -8892953357829325516}
   _inputCollector: {fileID: -4746967813159440358}
   _playerAiming: {fileID: 1034542312309700504}
-  _lookApplySpeed: 20
-  _enableSyncTelemetry: 1
-  _syncTelemetryLogIntervalTicks: 30
-  _useLegacyAuthoritativeBroadcast: 1
-  _useLegacyInputObserverBroadcast: 1
-  _useLegacyFrameValidation: 1
-  _enforceAuthoritativePosition: 1
-  _authoritativeSyncIntervalTicks: 1
-  _reconcileOwnerContinuously: 1
-  _ownerReconcileNudgeDistance: 0.05
-  _ownerReconcileSnapDistance: 0.35
-  _proxyReconcileNudgeDistance: 0.02
-  _proxyReconcileSnapDistance: 0.2
-  _reconcileBlendFactor: 0.35
-  _enableProxyInterpolationSmoothing: 1
-  _proxyInterpolationSmoothTime: 0.06
-  _proxyInterpolationMaxSpeed: 100
-  _proxyInterpolationSnapDistance: 1.5
-  _proxyVelocityBlendSpeed: 12
+  _removeEventSystemsFromPlayerHierarchy: 1
   _enforceCameraOwnershipInvariant: 1
   _enforceVirtualCameraOwnershipInvariant: 1
-  _removeEventSystemsFromPlayerHierarchy: 1
+  _maxHealth: 3
+  _respawnDelaySeconds: 0.05
+  _combatDebugLogging: 1
 --- !u!114 &-8892953357829325516
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9623,11 +9587,6 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Movement.RollbackManager
   _character: {fileID: 1208076651893476614}
-  _enableSyncTelemetry: 1
-  _maxPredictionLead: 15
-  _predictionLookbackFrames: 24
-  _stickMismatchThreshold: 1
-  _correctionLogInterval: 20
 --- !u!114 &-4746967813159440358
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9658,7 +9617,9 @@ MonoBehaviour:
   <ComponentIndex>k__BackingField: 0
   <PredictedSpawn>k__BackingField: {fileID: 0}
   <PredictedOwner>k__BackingField: {fileID: 0}
-  NetworkBehaviours: []
+  NetworkBehaviours:
+  - {fileID: -7145852457052913079}
+  - {fileID: 7967036886858646856}
   InitializedParentNetworkBehaviour: {fileID: 0}
   InitializedNestedNetworkObjects: []
   RuntimeParentNetworkBehaviour: {fileID: 0}
@@ -9669,9 +9630,9 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: 0
+  _initializedTimestamp: -8584256086841699781
   NetworkObserver: {fileID: 0}
-  _enablePrediction: 0
+  _enablePrediction: 1
   _predictionType: 0
   _localReconcileCorrectionType: 2
   _graphicalObject: {fileID: 0}
@@ -9685,15 +9646,15 @@ MonoBehaviour:
   _spectatorInterpolation: 2
   _enableTeleport: 0
   _teleportThreshold: 1
-  <PrefabId>k__BackingField: 65535
+  <PrefabId>k__BackingField: 2
   <SpawnableCollectionId>k__BackingField: 0
   <AssetPathHash>k__BackingField: 5342734844200817857
   SceneId: 0
   SerializedTransformProperties:
-    Position: {x: 0, y: 0, z: 0}
-    Rotation: {x: 0, y: 0, z: 0, w: 0}
-    Scale: {x: 0, y: 0, z: 0}
-    IsValid: 0
+    Position: {x: -9.6, y: 5.84, z: -14.8}
+    Rotation: {x: -0, y: -0, z: -0, w: 1}
+    Scale: {x: 1, y: 1, z: 1}
+    IsValid: 1
 --- !u!1 &9042330015758534429
 GameObject:
   m_ObjectHideFlags: 0

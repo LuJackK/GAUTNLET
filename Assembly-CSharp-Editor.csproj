@@ -1328,16 +1328,16 @@
       <HintPath>Library\ScriptAssemblies\Unity.ProBuilder.AddOns.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Unity.RenderPipelines.GPUDriven.Runtime">
-      <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.GPUDriven.Runtime.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Unity.Timeline.Editor">
       <HintPath>Library\ScriptAssemblies\Unity.Timeline.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.VisualScripting.State.Editor">
       <HintPath>Library\ScriptAssemblies\Unity.VisualScripting.State.Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.RenderPipelines.GPUDriven.Runtime">
+      <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.GPUDriven.Runtime.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.Mathematics">
@@ -1441,6 +1441,10 @@
     <ProjectReference Include="FishNet.Demos.csproj">
       <Project>{F5D08222-2A2F-3728-38D3-2316872F70E5}</Project>
       <Name>FishNet.Demos</Name>
+    </ProjectReference>
+    <ProjectReference Include="GAUTNLET.Game.csproj">
+      <Project>{C8F2296D-603A-6EB7-E88E-6D24AB4FCA5F}</Project>
+      <Name>GAUTNLET.Game</Name>
     </ProjectReference>
     <ProjectReference Include="FishNet.Codegen.Cecil.csproj">
       <Project>{1B807B2F-C480-BDD4-8BC9-58D6EC42FDE7}</Project>

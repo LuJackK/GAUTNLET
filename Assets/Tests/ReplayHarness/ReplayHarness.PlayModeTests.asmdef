@@ -1,0 +1,13 @@
+{
+    "name": "ReplayHarness.PlayModeTests",
+    "includePlatforms": [
+        "Editor"
+    ],
+    "references": [
+        "GAUTNLET.Game",
+        "FishNet.Runtime"
+    ],
+    "optionalUnityReferences": [
+        "TestAssemblies"
+    ]
+}

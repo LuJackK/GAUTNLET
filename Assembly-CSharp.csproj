@@ -61,39 +61,9 @@
     <Analyzer Include="C:\Users\LukaJack\Desktop\GAUTNLET\Assets\FishNet\Runtime\Plugins\CodeAnalysis\FishNet.CodeAnalysis.Analyzers.dll" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\MoveData.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\CameraWaterCheck.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\TraceUtil\Tracer.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Water.cs" />
-    <Compile Include="Assets\Scripts\Networking\PlayerSpawnService.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\SurfController.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\InputFrame.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\RollbackManager.cs" />
-    <Compile Include="Assets\Scripts\MenuController.cs" />
     <Compile Include="Assets\FishNet\Upgrading\UpgradeFromMirrorMenu.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\InputButtons.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Combat\Hurtbox.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Ladder.cs" />
-    <Compile Include="Assets\Scripts\PlayerVFXController.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Extensions\IntExtensions.cs" />
     <Compile Include="Assets\FishNet\Upgrading\MirrorUpgrade.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\SurfPhysics.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\LocalInputCollector.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Extensions\VectorExtensions.cs" />
-    <Compile Include="Assets\Scripts\Networking\SpawnPoint.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\MovementConfig.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Combat\Hitbox.cs" />
-    <Compile Include="Assets\Scripts\RotateWithCamera.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\ISurfControllable.cs" />
-    <Compile Include="Assets\Scripts\Speedometer.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\CharacterRenderer.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\PlayerAiming.cs" />
-    <Compile Include="Assets\Scripts\StaminaUI.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\TraceUtil\Trace.cs" />
-    <Compile Include="Assets\Scripts\UI\SingleEventSystemGuard.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\SurfCharacter.cs" />
-    <Compile Include="Assets\Scripts\SourcePhysics\Movement\NetworkedCharacter.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\KayKit_Prototype_Bits_1.1_FREE\License.txt" />
@@ -1322,16 +1292,16 @@
       <HintPath>Library\ScriptAssemblies\Unity.ProBuilder.AddOns.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Unity.RenderPipelines.GPUDriven.Runtime">
-      <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.GPUDriven.Runtime.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
     <Reference Include="Unity.Timeline.Editor">
       <HintPath>Library\ScriptAssemblies\Unity.Timeline.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.VisualScripting.State.Editor">
       <HintPath>Library\ScriptAssemblies\Unity.VisualScripting.State.Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.RenderPipelines.GPUDriven.Runtime">
+      <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.GPUDriven.Runtime.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.Mathematics">
@@ -1427,6 +1397,10 @@
     <ProjectReference Include="FishNet.Demos.csproj">
       <Project>{F5D08222-2A2F-3728-38D3-2316872F70E5}</Project>
       <Name>FishNet.Demos</Name>
+    </ProjectReference>
+    <ProjectReference Include="GAUTNLET.Game.csproj">
+      <Project>{C8F2296D-603A-6EB7-E88E-6D24AB4FCA5F}</Project>
+      <Name>GAUTNLET.Game</Name>
     </ProjectReference>
     <ProjectReference Include="FishNet.Codegen.Cecil.csproj">
       <Project>{1B807B2F-C480-BDD4-8BC9-58D6EC42FDE7}</Project>
