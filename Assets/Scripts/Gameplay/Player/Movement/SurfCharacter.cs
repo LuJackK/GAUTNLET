@@ -422,11 +422,14 @@ namespace Fragsurf.Movement {
             // state.origin += positionalMovement;
 
             // Triggers
+            int removedTriggerCount = triggers.RemoveAll(item => item == null);
+            if (removedTriggerCount > 0)
+                numberOfTriggers = -1;
+
             if (numberOfTriggers != triggers.Count) {
                 numberOfTriggers = triggers.Count;
 
                 underwater = false;
-                triggers.RemoveAll (item => item == null);
                 foreach (Collider trigger in triggers) {
 
                     if (trigger == null)

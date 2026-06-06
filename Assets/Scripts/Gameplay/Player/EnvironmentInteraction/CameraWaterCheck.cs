@@ -21,8 +21,13 @@ public class CameraWaterCheck : MonoBehaviour {
     }
 
     public bool IsUnderwater () {
-        
+
+        triggers.RemoveAll(trigger => trigger == null);
+
         foreach (Collider trigger in triggers) {
+
+            if (trigger == null)
+                continue;
 
             if (trigger.GetComponentInParent<Water> ())
                 return true;
@@ -31,6 +36,10 @@ public class CameraWaterCheck : MonoBehaviour {
 
         return false;
 
+    }
+
+    private void OnDisable () {
+        triggers.Clear ();
     }
 
 }

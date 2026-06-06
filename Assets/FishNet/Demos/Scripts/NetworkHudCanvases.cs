@@ -46,6 +46,10 @@ namespace FishNet.Example
         [Tooltip("Color when socket is started.")]
         [SerializeField]
         private Color _startedColor;
+        [Header("Display")]
+        [Tooltip("True to show FishNet's demo connection controls.")]
+        [SerializeField]
+        private bool _showHud = false;
         [Header("Indicators")]
         /// <summary>
         /// Indicator for server state.
@@ -85,6 +89,9 @@ namespace FishNet.Example
 
         private void OnGUI()
         {
+            if (!_showHud)
+                return;
+
 #if ENABLE_INPUT_SYSTEM
             string GetNextStateText(LocalConnectionState state)
             {
@@ -129,6 +136,8 @@ namespace FishNet.Example
 
         private void Start()
         {
+            SetHudVisuals(_showHud);
+
 #if !ENABLE_INPUT_SYSTEM
             SetEventSystem();
             if (_eventSystem == null)
@@ -243,6 +252,17 @@ namespace FishNet.Example
             SetEventSystem();
             _eventSystem?.SetSelectedGameObject(null);
 #endif
+        }
+
+        private void SetHudVisuals(bool visible)
+        {
+            Canvas canvas = GetComponent<Canvas>();
+            if (canvas != null)
+                canvas.enabled = visible;
+
+            GraphicRaycaster raycaster = GetComponent<GraphicRaycaster>();
+            if (raycaster != null)
+                raycaster.enabled = visible;
         }
     }
 }

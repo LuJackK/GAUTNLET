@@ -5,11 +5,14 @@ namespace Fragsurf.Movement {
 
     internal sealed class NetworkedCharacterPredictionReconcileService {
         private const int ReplayInputBufferSize = 1024;
+        private const int SpectatorSnapshotBufferSize = 64;
+        private const int SpectatorInterpolationDelayTicks = 2;
 
         private readonly NetworkedCharacter _owner;
         private readonly InputFrame[] _replayInputs = new InputFrame[ReplayInputBufferSize];
         private readonly int[] _replayInputTicks = new int[ReplayInputBufferSize];
         private readonly byte[] _replayInputQuality = new byte[ReplayInputBufferSize];
+        private readonly AuthoritativeMoveDataSnapshotBuffer _spectatorSnapshots = new AuthoritativeMoveDataSnapshotBuffer();
 
         private const byte ReplayInputQualityMissing = 0;
         private const byte ReplayInputQualityRecovered = 1;
@@ -36,6 +39,9 @@ namespace Fragsurf.Movement {
                                  float deltaTime,
                                  ref InputFrame lastTickedInput,
                                  ref bool hasLastTickedInput) {
+            if (_owner.IsPureClientProxy)
+                return;
+
             RollbackManager rollback = _owner.RollbackManager;
             if (rollback == null)
                 return;
@@ -156,13 +162,23 @@ namespace Fragsurf.Movement {
         }
 
         public void ApplyReconcile(NetworkedCharacterReconcileData reconcileData, float deltaTime) {
-            RollbackManager rollback = _owner.RollbackManager;
             SurfCharacter character = _owner.Character;
-            if (rollback == null || character == null)
+            if (character == null)
                 return;
 
             _diagnostics.ReconcilePacketsReceived++;
             MoveData authoritativeState = BuildAuthoritativeMoveData(reconcileData, character);
+
+            if (_owner.IsPureClientProxy) {
+                _spectatorSnapshots.Store(reconcileData.Frame, authoritativeState);
+                UpdateSpectatorDiagnostics(reconcileData.Frame);
+                UpdateSpectatorPresentation();
+                return;
+            }
+
+            RollbackManager rollback = _owner.RollbackManager;
+            if (rollback == null)
+                return;
 
             StateDivergenceReport report;
             if (!rollback.TryGetPredictedState(reconcileData.Frame, out MoveData predictedState)) {
@@ -192,6 +208,22 @@ namespace Fragsurf.Movement {
             rollback.ApplyAuthoritativeCorrection(authoritativeState, deltaTime, GetReplayInputForTick);
             character.RefreshRuntimeStateFromMoveData();
             ApplySpectatorPresentation(reconcileData.Frame);
+        }
+
+        public void UpdateSpectatorPresentation() {
+            if (!_owner.IsPureClientProxy)
+                return;
+
+            if (!_spectatorSnapshots.TryGetInterpolatedState(GetSpectatorPresentationFrame(), out MoveData presentationState))
+                return;
+
+            _owner.ApplySpectatorPresentationState(presentationState);
+            _diagnostics.SpectatorPresentationApplications++;
+            _diagnostics.LastSpectatorPresentationFrame = presentationState.frame;
+        }
+
+        public void ResetSpectatorPresentationBuffer() {
+            _spectatorSnapshots.Clear();
         }
 
         private MoveData BuildAuthoritativeMoveData(NetworkedCharacterReconcileData reconcileData, SurfCharacter character) {
@@ -350,6 +382,24 @@ namespace Fragsurf.Movement {
             _diagnostics.LastSpectatorPresentationFrame = frame;
         }
 
+        private float GetSpectatorPresentationFrame() {
+            if (_owner.NetworkTimeManager == null)
+                return _spectatorSnapshots.LatestFrame;
+
+            float tickPercent = Mathf.Clamp01((float)_owner.NetworkTimeManager.GetTickPercentAsDouble());
+            return (float)_owner.NetworkTimeManager.Tick - SpectatorInterpolationDelayTicks + tickPercent;
+        }
+
+        private void UpdateSpectatorDiagnostics(int frame) {
+            _diagnostics.LastFrame = frame;
+            _diagnostics.LastDecision = CorrectionDecision.Ignore;
+            _diagnostics.LastWeightedScore = 0f;
+            _diagnostics.LastPrimaryReason = "Pure client proxy spectator presentation";
+            _diagnostics.LastSummary = $"SpectatorPresentation | authoritative frame {frame} buffered";
+            _consecutiveObserveCount = 0;
+            _diagnostics.ConsecutiveObserveCount = 0;
+        }
+
         private void LogReplayIntegrityError(string message) {
             Debug.LogError($"[NetworkedCharacterPredictionReconcileService] {message}", _owner);
         }
@@ -415,6 +465,125 @@ namespace Fragsurf.Movement {
                                    suspects,
                                    $"correction-gate-{_owner.ObjectId}-{report.Decision}",
                                    report.Decision == CorrectionDecision.ObserveOnly ? 0.25f : 0f);
+        }
+
+        private sealed class AuthoritativeMoveDataSnapshotBuffer {
+            private readonly MoveData[] _states = new MoveData[SpectatorSnapshotBufferSize];
+            private readonly int[] _frames = new int[SpectatorSnapshotBufferSize];
+
+            public int LatestFrame { get; private set; } = InputFrame.InvalidFrame;
+
+            public AuthoritativeMoveDataSnapshotBuffer() {
+                Clear();
+            }
+
+            public void Clear() {
+                for (int i = 0; i < SpectatorSnapshotBufferSize; i++) {
+                    _states[i] = null;
+                    _frames[i] = InputFrame.InvalidFrame;
+                }
+
+                LatestFrame = InputFrame.InvalidFrame;
+            }
+
+            public void Store(int frame, MoveData state) {
+                if (state == null || frame == InputFrame.InvalidFrame)
+                    return;
+
+                int slot = FrameToSlot(frame);
+                _states[slot] = state.Clone();
+                _frames[slot] = frame;
+
+                if (LatestFrame == InputFrame.InvalidFrame || frame > LatestFrame)
+                    LatestFrame = frame;
+            }
+
+            public bool TryGetInterpolatedState(float targetFrame, out MoveData state) {
+                state = null;
+
+                int beforeFrame = InputFrame.InvalidFrame;
+                int afterFrame = InputFrame.InvalidFrame;
+                MoveData beforeState = null;
+                MoveData afterState = null;
+
+                for (int i = 0; i < SpectatorSnapshotBufferSize; i++) {
+                    MoveData candidate = _states[i];
+                    int frame = _frames[i];
+                    if (candidate == null || frame == InputFrame.InvalidFrame)
+                        continue;
+
+                    if (frame <= targetFrame && (beforeFrame == InputFrame.InvalidFrame || frame > beforeFrame)) {
+                        beforeFrame = frame;
+                        beforeState = candidate;
+                    }
+
+                    if (frame >= targetFrame && (afterFrame == InputFrame.InvalidFrame || frame < afterFrame)) {
+                        afterFrame = frame;
+                        afterState = candidate;
+                    }
+                }
+
+                if (beforeState != null && afterState != null) {
+                    if (beforeFrame == afterFrame) {
+                        state = beforeState.Clone();
+                        return true;
+                    }
+
+                    float span = Mathf.Max(1f, afterFrame - beforeFrame);
+                    float t = Mathf.Clamp01((targetFrame - beforeFrame) / span);
+                    state = Interpolate(beforeState, afterState, t);
+                    return true;
+                }
+
+                if (beforeState != null) {
+                    state = beforeState.Clone();
+                    return true;
+                }
+
+                if (afterState != null) {
+                    state = afterState.Clone();
+                    return true;
+                }
+
+                return false;
+            }
+
+            private static MoveData Interpolate(MoveData from, MoveData to, float t) {
+                MoveData state = from.Clone();
+                state.origin = Vector3.Lerp(from.origin, to.origin, t);
+                state.velocity = Vector3.Lerp(from.velocity, to.velocity, t);
+                state.viewAngles = new Vector3(Mathf.LerpAngle(from.viewAngles.x, to.viewAngles.x, t),
+                                               Mathf.LerpAngle(from.viewAngles.y, to.viewAngles.y, t),
+                                               Mathf.LerpAngle(from.viewAngles.z, to.viewAngles.z, t));
+                state.forwardMove = Mathf.Lerp(from.forwardMove, to.forwardMove, t);
+                state.sideMove = Mathf.Lerp(from.sideMove, to.sideMove, t);
+                state.verticalAxis = Mathf.Lerp(from.verticalAxis, to.verticalAxis, t);
+                state.horizontalAxis = Mathf.Lerp(from.horizontalAxis, to.horizontalAxis, t);
+                state.stamina = Mathf.Lerp(from.stamina, to.stamina, t);
+                state.staminaRegenTimer = Mathf.Lerp(from.staminaRegenTimer, to.staminaRegenTimer, t);
+                state.dashTimer = Mathf.Lerp(from.dashTimer, to.dashTimer, t);
+                state.currentDashDuration = Mathf.Lerp(from.currentDashDuration, to.currentDashDuration, t);
+                state.dashCooldownTimer = Mathf.Lerp(from.dashCooldownTimer, to.dashCooldownTimer, t);
+                state.jumpTimer = Mathf.Lerp(from.jumpTimer, to.jumpTimer, t);
+                state.surfaceFriction = Mathf.Lerp(from.surfaceFriction, to.surfaceFriction, t);
+                state.gravityFactor = Mathf.Lerp(from.gravityFactor, to.gravityFactor, t);
+                state.walkFactor = Mathf.Lerp(from.walkFactor, to.walkFactor, t);
+                state.fallingVelocity = Mathf.Lerp(from.fallingVelocity, to.fallingVelocity, t);
+                state.crouchLerp = Mathf.Lerp(from.crouchLerp, to.crouchLerp, t);
+                state.renderCrouchLerp = Mathf.Lerp(from.renderCrouchLerp, to.renderCrouchLerp, t);
+                state.slideSpeedCurrent = Mathf.Lerp(from.slideSpeedCurrent, to.slideSpeedCurrent, t);
+                state.slideDirection = Vector3.Lerp(from.slideDirection, to.slideDirection, t);
+                state.slideDelay = Mathf.Lerp(from.slideDelay, to.slideDelay, t);
+                state.meleeTimer = Mathf.Lerp(from.meleeTimer, to.meleeTimer, t);
+                state.meleeCooldownTimer = Mathf.Lerp(from.meleeCooldownTimer, to.meleeCooldownTimer, t);
+                state.parryTimer = Mathf.Lerp(from.parryTimer, to.parryTimer, t);
+                return state;
+            }
+
+            private static int FrameToSlot(int frame) {
+                int slot = frame % SpectatorSnapshotBufferSize;
+                return (slot < 0) ? slot + SpectatorSnapshotBufferSize : slot;
+            }
         }
     }
 }

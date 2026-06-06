@@ -209,6 +209,7 @@ MonoBehaviour:
   _stoppedColor: {r: 0, g: 0, b: 0, a: 0.5019608}
   _changingColor: {r: 1, g: 1, b: 1, a: 0.5019608}
   _startedColor: {r: 0, g: 0.5882353, b: 0.64705884, a: 1}
+  _showHud: 0
   _serverIndicator: {fileID: 1987398659}
   _clientIndicator: {fileID: 1987398657}
 --- !u!223 &4393252310969058991
@@ -218,7 +219,7 @@ Canvas:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4393252310969058995}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_RenderMode: 0
   m_Camera: {fileID: 0}
@@ -263,7 +264,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 4393252310969058995}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dc42784cf147c0c48a680349fa168899, type: 3}
   m_Name: 

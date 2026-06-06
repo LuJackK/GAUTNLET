@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 4c0a6637411269647a88656940e2b41d, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -363,13 +363,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 235025149}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.37504804, y: -0, z: -0, w: 0.92700535}
-  m_LocalPosition: {x: -6.17797, y: -0.049999714, z: -21.000608}
+  m_LocalRotation: {x: 0.46082634, y: -0, z: -0, w: 0.88749033}
+  m_LocalPosition: {x: -6.54, y: -0.049999677, z: -19.87}
   m_LocalScale: {x: 3.4095926, y: 1, z: 1.0660819}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1303546231}
-  m_LocalEulerAnglesHint: {x: 44.055, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 54.881, y: 0, z: 0}
 --- !u!1 &311400203
 GameObject:
   m_ObjectHideFlags: 0
@@ -1037,13 +1037,122 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 749579240}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.26520154, y: -0.65549076, z: 0.26520154, w: 0.65549076}
-  m_LocalPosition: {x: 14.97333, y: 0.08260012, z: -3.4170094}
+  m_LocalRotation: {x: 0.3472654, y: -0.61596006, z: 0.3472654, w: 0.61596006}
+  m_LocalPosition: {x: 13.48, y: 0.08259994, z: -3.79}
   m_LocalScale: {x: 6.571743, y: 1.0223186, z: 1.0839273}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1303546231}
-  m_LocalEulerAnglesHint: {x: 44.055, y: -90, z: 0}
+  m_LocalEulerAnglesHint: {x: 58.827, y: -90, z: 0}
+--- !u!1 &821983207
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 821983208}
+  - component: {fileID: 821983209}
+  m_Layer: 0
+  m_Name: PickupSpawnLocation (2)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &821983208
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 821983207}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -11.57, y: 1.122, z: 2.07}
+  m_LocalScale: {x: 0.7692308, y: 0.7692308, z: 0.7692308}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1303546231}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &821983209
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 821983207}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f7a4367644b941e09e9fbf84d5fdad2a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GAUTNLET.Game::GAUNTLET.Gameplay.Pickups.PickupSpawnLocation
+  locationId: pickup_location
+  spawnPointOverride: {fileID: 821983208}
+  spawnIntervalSeconds: 5
+  initialSpawnDelaySeconds: 5
+  randomizePoolSelection: 1
+  pickupPool:
+  - {fileID: 11400000, guid: 262958efdcaee344daa3e1d9d70ad4b9, type: 2}
+  - {fileID: 11400000, guid: 935d1e3e09ff17047a182aadfb10873e, type: 2}
+  drawGizmo: 1
+  gizmoColor: {r: 1, g: 0, b: 0.1303339, a: 1}
+  gizmoRadius: 0.35
+--- !u!1 &863319726
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 863319727}
+  - component: {fileID: 863319728}
+  m_Layer: 0
+  m_Name: PickupSpawnLocation
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &863319727
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 863319726}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -1.409, y: 1.122, z: 2.07}
+  m_LocalScale: {x: 0.7692308, y: 0.7692308, z: 0.7692308}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1303546231}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &863319728
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 863319726}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f7a4367644b941e09e9fbf84d5fdad2a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GAUTNLET.Game::GAUNTLET.Gameplay.Pickups.PickupSpawnLocation
+  locationId: pickup_location
+  spawnPointOverride: {fileID: 863319727}
+  spawnIntervalSeconds: 5
+  initialSpawnDelaySeconds: 5
+  randomizePoolSelection: 1
+  pickupPool:
+  - {fileID: 11400000, guid: f4779ac45f905ba46a0df76c74970218, type: 2}
+  drawGizmo: 1
+  gizmoColor: {r: 1, g: 0, b: 0.1303339, a: 1}
+  gizmoRadius: 0.35
 --- !u!1 &894913015
 GameObject:
   m_ObjectHideFlags: 0
@@ -1321,6 +1430,61 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 982811312}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1 &1143702825
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1143702826}
+  - component: {fileID: 1143702827}
+  m_Layer: 0
+  m_Name: PickupSpawnLocation (1)
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1143702826
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1143702825}
+  serializedVersion: 2
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 8.59, y: 1.122, z: 2.07}
+  m_LocalScale: {x: 0.7692308, y: 0.7692308, z: 0.7692308}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 1303546231}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1143702827
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1143702825}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f7a4367644b941e09e9fbf84d5fdad2a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GAUTNLET.Game::GAUNTLET.Gameplay.Pickups.PickupSpawnLocation
+  locationId: pickup_location
+  spawnPointOverride: {fileID: 1143702826}
+  spawnIntervalSeconds: 5
+  initialSpawnDelaySeconds: 5
+  randomizePoolSelection: 1
+  pickupPool:
+  - {fileID: 11400000, guid: 262958efdcaee344daa3e1d9d70ad4b9, type: 2}
+  - {fileID: 11400000, guid: 935d1e3e09ff17047a182aadfb10873e, type: 2}
+  drawGizmo: 1
+  gizmoColor: {r: 1, g: 0, b: 0.1303339, a: 1}
+  gizmoRadius: 0.35
 --- !u!1 &1218530540
 GameObject:
   m_ObjectHideFlags: 0
@@ -1510,6 +1674,9 @@ Transform:
   m_Children:
   - {fileID: 1307601214}
   - {fileID: 1309850723}
+  - {fileID: 863319727}
+  - {fileID: 1143702826}
+  - {fileID: 821983208}
   - {fileID: 1489507940}
   - {fileID: 2102028410}
   - {fileID: 1745714574}
@@ -2304,13 +2471,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1952734840}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: 0.927004, z: -0.37505165, w: 0}
-  m_LocalPosition: {x: -4.1086698, y: 0.03579998, z: 24.516891}
+  m_LocalRotation: {x: -0, y: 0.89159524, z: -0.45283327, w: 0}
+  m_LocalPosition: {x: -4.1086698, y: 0.4, z: 23.65}
   m_LocalScale: {x: 3.8200028, y: 0.9768858, z: 1.0660819}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1303546231}
-  m_LocalEulerAnglesHint: {x: 44.055, y: 180, z: 0}
+  m_LocalEulerAnglesHint: {x: 53.851, y: 180, z: 0}
 --- !u!1 &1994661183
 GameObject:
   m_ObjectHideFlags: 0
@@ -2417,13 +2584,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1994661183}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.26520154, y: 0.65549076, z: -0.26520154, w: 0.65549076}
-  m_LocalPosition: {x: -17.94467, y: -0.049999714, z: 2.81909}
+  m_LocalRotation: {x: 0.29556727, y: 0.64237064, z: -0.29556727, w: 0.64237064}
+  m_LocalPosition: {x: -17.18, y: -0.049999677, z: 2.81909}
   m_LocalScale: {x: 5.3218036, y: 1, z: 1.0839273}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1303546231}
-  m_LocalEulerAnglesHint: {x: 44.055, y: 90, z: 0}
+  m_LocalEulerAnglesHint: {x: 49.416, y: 90, z: 0}
 --- !u!1 &2007609569
 GameObject:
   m_ObjectHideFlags: 0

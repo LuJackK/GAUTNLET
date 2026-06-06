@@ -1,0 +1,40 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 926f4b9dccac9fe46962a01a85c59c99, type: 3}
+  m_Name: UT99SpaceAtmosphere
+  m_EditorClassIdentifier: 
+  skyboxMaterial: {fileID: 2100000, guid: 4c0a6637411269647a88656940e2b41d, type: 2}
+  frontTexture: {fileID: 2800000, guid: f94dea4f1a48ab442aa9c4030d47c45c, type: 3}
+  backTexture: {fileID: 2800000, guid: 16dfaa97847e2aa409199593f0fd0a85, type: 3}
+  leftTexture: {fileID: 2800000, guid: c6828172e4c7e6f43926f32164fbc894, type: 3}
+  rightTexture: {fileID: 2800000, guid: e5358f394da3e514cb93718104de8156, type: 3}
+  upTexture: {fileID: 2800000, guid: d9a238c31ef20b440b01703d76f63558, type: 3}
+  downTexture: {fileID: 2800000, guid: fca3cea8b8c1ecd4ca9c7252b1bb4ef3, type: 3}
+  skyboxTint: {r: 0.68, g: 0.78, b: 1, a: 1}
+  skyboxExposure: 0.82
+  skyboxRotation: 0
+  fogEnabled: 1
+  fogColor: {r: 0.045, g: 0.07, b: 0.16, a: 1}
+  fogMode: 3
+  fogDensity: 0.0065
+  linearFogStart: 18
+  linearFogEnd: 280
+  ambientMode: 1
+  ambientSkyColor: {r: 0.24, g: 0.34, b: 0.62, a: 1}
+  ambientEquatorColor: {r: 0.09, g: 0.14, b: 0.28, a: 1}
+  ambientGroundColor: {r: 0.035, g: 0.03, b: 0.055, a: 1}
+  ambientIntensity: 0.7
+  subtractiveShadowColor: {r: 0.08, g: 0.1, b: 0.22, a: 1}
+  defaultReflectionMode: 0
+  defaultReflectionResolution: 128
+  reflectionIntensity: 0.38
+  reflectionBounces: 1

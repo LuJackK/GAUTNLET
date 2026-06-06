@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4b84faed9c3f4888acc7a9b2c4023f0d, type: 3}
+  m_Name: regen
+  m_EditorClassIdentifier: GAUTNLET.Game::GAUNTLET.Gameplay.Pickups.PickupDefinition
+  pickupId: pickup
+  displayName: Pickup
+  upgradeKind: 2
+  pickupPrefab: {fileID: 1825128857965218508, guid: 281db3074dbfb1b4ca870727526004fa, type: 3}
+  effect: {fileID: 11400000, guid: 2b42f11155752a146b4fddf06b2f997d, type: 2}
+  consumeWhenEffectMissing: 1

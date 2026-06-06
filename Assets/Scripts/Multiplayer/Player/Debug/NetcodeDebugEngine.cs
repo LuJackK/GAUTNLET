@@ -91,8 +91,8 @@ namespace Fragsurf.Movement {
 
         [Header("Runtime")]
         [SerializeField] private bool _engineEnabled = true;
-        [SerializeField] private bool _showOverlay = true;
-        [SerializeField] private bool _enableHotkeys = true;
+        [SerializeField] private bool _showOverlay = false;
+        [SerializeField] private bool _enableHotkeys = false;
         [SerializeField] private bool _includeTraceLogsInConsole = false;
         [SerializeField] private int _maxEvents = 256;
 

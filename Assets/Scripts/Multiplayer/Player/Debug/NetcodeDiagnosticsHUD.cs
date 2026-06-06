@@ -12,7 +12,7 @@ namespace Fragsurf.Movement {
         [SerializeField] private SurfCharacter _surfCharacter;
 
         [Header("Display")]
-        [SerializeField] private bool _showHud = true;
+        [SerializeField] private bool _showHud = false;
         [SerializeField] private bool _ownerOnly = true;
         [SerializeField] private Vector2 _screenOffset = new Vector2(16f, 16f);
         [SerializeField] private int _fontSize = 14;

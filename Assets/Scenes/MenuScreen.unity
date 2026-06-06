@@ -26,7 +26,7 @@ RenderSettings:
   m_AmbientIntensity: 1
   m_AmbientMode: 0
   m_SubtractiveShadowColor: {r: 0.42, g: 0.478, b: 0.627, a: 1}
-  m_SkyboxMaterial: {fileID: 10304, guid: 0000000000000000f000000000000000, type: 0}
+  m_SkyboxMaterial: {fileID: 2100000, guid: 4c0a6637411269647a88656940e2b41d, type: 2}
   m_HaloStrength: 0.5
   m_FlareStrength: 1
   m_FlareFadeSpeed: 3
@@ -433,8 +433,8 @@ MonoBehaviour:
     body: {fileID: 2100000, guid: e7d2915f00d3df949abfe2f64e242eb9, type: 2}
     gauntlet: {fileID: 2100000, guid: 81a8136c6d22b2648a24446fe3a951e8, type: 2}
     rocketBody: {fileID: 2100000, guid: 61631e44e65066544a15dfdcb4a0991b, type: 2}
-    rocketSlot0: {fileID: 0}
-    rocketSlot1: {fileID: 0}
+    rocketSlot0: {fileID: 2100000, guid: 250c7f0460734ed42bf7dd985faf67c7, type: 2}
+    rocketSlot1: {fileID: 2100000, guid: 250c7f0460734ed42bf7dd985faf67c7, type: 2}
     rocketSlot2: {fileID: 0}
     rocketSlot3: {fileID: 0}
   dontDestroyOnLoad: 1
@@ -456,6 +456,10 @@ MonoBehaviour:
   - sceneName: Map1
     tracks:
     - {fileID: 8300000, guid: a5a01598b9f48f445a709a1e6c391fab, type: 3}
+    - {fileID: 8300000, guid: 75d0225f2e521fd4a83dc5dfe655a8be, type: 3}
+  - sceneName: Map2
+    tracks:
+    - {fileID: 8300000, guid: 75d0225f2e521fd4a83dc5dfe655a8be, type: 3}
   dontDestroyOnLoad: 1
   playForCurrentSceneOnStart: 1
   stopWhenSceneHasNoPlaylist: 1
@@ -663,11 +667,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   maps:
-  - displayName: Map 1
-    previewImage: {fileID: 0}
+  - displayName: The Bowl
+    previewImage: {fileID: 21300000, guid: c036207dfd4cda14ba9393bb3c1bea2f, type: 3}
     sceneName: Map1
-  - displayName: Map 2
-    previewImage: {fileID: 0}
+  - displayName: Space Park
+    previewImage: {fileID: 21300000, guid: c63926afb8e47b948a124a03c4a8c063, type: 3}
     sceneName: Map2
   menuCanvas: {fileID: 64523239}
   mainMenuRoot: {fileID: 432085050}
@@ -2142,7 +2146,7 @@ MonoBehaviour:
     m_Bits: 1
   m_VolumeTrigger: {fileID: 0}
   m_VolumeFrameworkUpdateModeOption: 2
-  m_RenderPostProcessing: 0
+  m_RenderPostProcessing: 1
   m_Antialiasing: 0
   m_AntialiasingQuality: 2
   m_StopNaN: 0

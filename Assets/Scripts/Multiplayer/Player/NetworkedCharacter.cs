@@ -47,6 +47,7 @@ namespace Fragsurf.Movement {
         public bool UseLegacyAuthoritativeBroadcast => false;
         public bool UseLegacyInputObserverBroadcast => false;
         public bool UseLegacyFrameValidation => false;
+        public bool IsPureClientProxy => IsClientInitialized && !IsServerInitialized && !DebugHasLocalAuthority;
         public bool DebugHasLocalAuthority => HasLocalAuthority();
         public int RollbackTick => (_rollback != null) ? _rollback.CurrentTick : InputFrame.InvalidFrame;
         public int RollbackCount => (_rollback != null) ? _rollback.RollbackCount : 0;
@@ -116,6 +117,27 @@ namespace Fragsurf.Movement {
 
         public event System.Action<int, int, bool> HealthChanged;
 
+        public bool TryRestoreHealth(int amount, string reason = "pickup") {
+            if (amount <= 0 || _respawnRoutineRunning)
+                return false;
+
+            if (IsClientInitialized && !IsServerInitialized)
+                return false;
+
+            int previousHealth = _currentHealth.Value;
+            int nextHealth = Mathf.Clamp(previousHealth + amount, 0, MaxHealth);
+            if (nextHealth == previousHealth)
+                return false;
+
+            if (_combatDebugLogging) {
+                int objectId = NetworkObject != null ? ObjectId : 0;
+                Debug.Log($"[NetworkedCharacter] Health restored. objectId={objectId}, reason={reason}, amount={amount}, prevHealth={previousHealth}, nextHealth={nextHealth}", this);
+            }
+
+            _currentHealth.Value = nextHealth;
+            return true;
+        }
+
         private void Awake() {
             if (_character == null)
                 _character = GetComponent<SurfCharacter>();
@@ -162,6 +184,7 @@ namespace Fragsurf.Movement {
 
             _hasLastReplicatedInput = false;
             _lastReplicatedInput = default;
+            _predictionReconcileService?.ResetSpectatorPresentationBuffer();
             _ownershipGate.OnNetworkStart();
             ApplyPlayerMaterialJoinIndex(_playerMaterialJoinIndex.Value);
 
@@ -200,6 +223,7 @@ namespace Fragsurf.Movement {
 
             _hasLastReplicatedInput = false;
             _lastReplicatedInput = default;
+            _predictionReconcileService?.ResetSpectatorPresentationBuffer();
             _ownershipGate.OnNetworkStop();
             SetLocalControlEnabledInternal(false, preserveHeldButtons: false);
             SetAimingEnabledInternal(false);
@@ -212,6 +236,7 @@ namespace Fragsurf.Movement {
         }
 
         private void LateUpdate() {
+            _predictionReconcileService?.UpdateSpectatorPresentation();
             _cameraOwnershipGuard.LateUpdate();
         }
 
@@ -372,6 +397,14 @@ namespace Fragsurf.Movement {
                 return;
 
             ApplyBodyYaw(_character.moveData.viewAngles.y);
+        }
+
+        internal void ApplySpectatorPresentationState(MoveData state) {
+            if (DebugHasLocalAuthority || _character == null || state == null)
+                return;
+
+            _character.LoadState(state);
+            ApplyLookRotation(state.viewAngles.y, state.viewAngles.x);
         }
 
         internal void SetLocalControlEnabledInternal(bool shouldEnable, bool preserveHeldButtons) {
@@ -573,6 +606,7 @@ namespace Fragsurf.Movement {
             }
 
             ApplyLookRotation(yaw, pitch);
+            _predictionReconcileService?.ResetSpectatorPresentationBuffer();
             _ownershipGate.OnAuthoritativeSpawnPoseApplied();
         }
 
@@ -628,14 +662,8 @@ namespace Fragsurf.Movement {
                 return false;
             }
 
-            bool isPureClientProxy = IsClientInitialized && !IsServerInitialized && !DebugHasLocalAuthority;
-            if (isPureClientProxy) {
-                // Spectators must still execute prediction ticks to consume
-                // state-forwarded replicate streams. If forwarding is disabled,
-                // fall back to external sync paths (eg. NetworkTransform).
-                if (NetworkObject == null || !NetworkObject.EnableStateForwarding)
-                    return false;
-            }
+            if (IsPureClientProxy)
+                return false;
 
             return true;
         }
