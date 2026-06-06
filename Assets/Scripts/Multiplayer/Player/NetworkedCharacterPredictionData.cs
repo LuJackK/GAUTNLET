@@ -52,6 +52,9 @@ namespace Fragsurf.Movement {
         public float SlideSpeedCurrent;
         public UnityEngine.Vector3 SlideDirection;
         public float SlideDelay;
+        public byte DashStartedThisFrame;
+        public byte DoubleJumpedThisFrame;
+        public byte MeleeHitThisFrame;
         public byte MeleeState;
         public float MeleeTimer;
         public float MeleeCooldownTimer;
@@ -59,6 +62,11 @@ namespace Fragsurf.Movement {
         public byte MeleeHitResolved;
         public int MeleeHitTargetObjectId;
         public int MeleeHitResolveTick;
+        public byte IsParrying;
+        public float ParryTimer;
+        public byte ParryStartedThisFrame;
+        public byte ParrySuccessThisFrame;
+        public int LastConsumedParryPressFrame;
         public int LastConsumedJumpPressFrame;
         public int LastConsumedDashPressFrame;
         private uint _tick;
@@ -99,6 +107,9 @@ namespace Fragsurf.Movement {
             SlideSpeedCurrent = 0f;
             SlideDirection = default;
             SlideDelay = 0f;
+            DashStartedThisFrame = 0;
+            DoubleJumpedThisFrame = 0;
+            MeleeHitThisFrame = 0;
             MeleeState = 0;
             MeleeTimer = 0f;
             MeleeCooldownTimer = 0f;
@@ -106,6 +117,11 @@ namespace Fragsurf.Movement {
             MeleeHitResolved = 0;
             MeleeHitTargetObjectId = 0;
             MeleeHitResolveTick = -1;
+            IsParrying = 0;
+            ParryTimer = 0f;
+            ParryStartedThisFrame = 0;
+            ParrySuccessThisFrame = 0;
+            LastConsumedParryPressFrame = -1;
             LastConsumedJumpPressFrame = -1;
             LastConsumedDashPressFrame = -1;
             _tick = 0;

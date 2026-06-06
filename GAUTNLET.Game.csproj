@@ -69,6 +69,7 @@
     <Compile Include="Assets\Scripts\Gameplay\Combat\Hurtbox.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\RollbackManager.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\CorrectionGateDiagnosticsSnapshot.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\PlayerMaterialApplicator.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\SurfPhysics.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Combat\Hitbox.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\RotateWithCamera.cs" />
@@ -77,16 +78,19 @@
     <Compile Include="Assets\Scripts\UI\PlayerHealthBillboard.cs" />
     <Compile Include="Assets\Scripts\Shared\Extensions\VectorExtensions.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacter.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\MeleePlasmaEffect.cs" />
     <Compile Include="Assets\Scripts\UI\Speedometer.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\MovementConfig.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\EnvironmentInteraction\CameraWaterCheck.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\NetcodeDebugEngine.cs" />
+    <Compile Include="Assets\Scripts\SceneMusicPlayer.cs" />
     <Compile Include="Assets\Scripts\Shared\Extensions\IntExtensions.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\CorrectionDecision.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacterPredictionReconcileService.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\Spawning\PlayerSpawnService.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\RollbackReplayEngine.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Input\InputButtons.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\CloudPoofEffect.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\MoveData.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\NetcodeDiagnosticsHUD.cs" />
     <Compile Include="Assets\Scripts\Shared\Physics\Tracer.cs" />
@@ -95,17 +99,22 @@
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacterOwnershipGateController.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Input\LocalInputCollector.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\Spawning\SpawnPoint.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\ParryShieldEffect.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\ISurfControllable.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\StateDivergenceEvaluator.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\DashLineEffect.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\EnvironmentInteraction\Water.cs" />
     <Compile Include="Assets\Scripts\UI\MenuController.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\SurfCharacter.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacterPredictionData.cs" />
     <Compile Include="Assets\Scripts\Shared\Physics\Trace.cs" />
+    <Compile Include="Assets\Scripts\SoundEffectsManager.cs" />
     <Compile Include="Assets\Scripts\UI\SingleEventSystemGuard.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\StateDivergenceReport.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\PlayerSoundController.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacterCameraOwnershipGuard.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Input\InputFrame.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\PlayerMaterialManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\Scripts\GAUTNLET.Game.asmdef" />

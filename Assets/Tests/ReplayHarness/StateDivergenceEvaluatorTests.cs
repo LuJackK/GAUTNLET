@@ -21,10 +21,11 @@ namespace Fragsurf.ReplayHarness {
 
         [Test]
         public void Evaluate_HardCorrects_OnPositionThresholdExceeded() {
-            StateDivergenceEvaluator evaluator = new StateDivergenceEvaluator(CorrectionGateConfig.CreateConservativeDefaults());
+            CorrectionGateConfig config = CorrectionGateConfig.CreateConservativeDefaults();
+            StateDivergenceEvaluator evaluator = new StateDivergenceEvaluator(config);
             MoveData predicted = CreateBaseline();
             MoveData authoritative = CreateBaseline();
-            authoritative.origin += new Vector3(0.1f, 0f, 0f);
+            authoritative.origin += new Vector3(config.PositionHardThreshold + 0.1f, 0f, 0f);
 
             StateDivergenceReport report = evaluator.Evaluate(predicted, authoritative, 0);
 
@@ -63,6 +64,34 @@ namespace Fragsurf.ReplayHarness {
 
             Assert.AreEqual(CorrectionDecision.Ignore, report.Decision);
             Assert.Less(report.WeightedScore, CorrectionGateConfig.CreateConservativeDefaults().ObserveWeightedScoreThreshold);
+        }
+
+        [Test]
+        public void Evaluate_RelaxesVerticalDrift_ForForeignMeleeCharge() {
+            StateDivergenceEvaluator evaluator = new StateDivergenceEvaluator(CorrectionGateConfig.CreateConservativeDefaults());
+            MoveData predicted = CreateCharging();
+            MoveData authoritative = CreateCharging();
+            authoritative.origin += new Vector3(0f, 0.9f, 0f);
+            authoritative.velocity += new Vector3(0f, 6f, 0f);
+
+            StateDivergenceReport strictReport = evaluator.Evaluate(predicted, authoritative, 0);
+            StateDivergenceReport relaxedReport = evaluator.Evaluate(predicted, authoritative, 0, true);
+
+            Assert.AreEqual(CorrectionDecision.HardCorrect, strictReport.Decision);
+            Assert.AreEqual(CorrectionDecision.Ignore, relaxedReport.Decision);
+        }
+
+        [Test]
+        public void Evaluate_KeepsHorizontalHardCorrect_ForForeignMeleeCharge() {
+            StateDivergenceEvaluator evaluator = new StateDivergenceEvaluator(CorrectionGateConfig.CreateConservativeDefaults());
+            MoveData predicted = CreateCharging();
+            MoveData authoritative = CreateCharging();
+            authoritative.origin += new Vector3(0.5f, 0f, 0f);
+
+            StateDivergenceReport report = evaluator.Evaluate(predicted, authoritative, 0, true);
+
+            Assert.AreEqual(CorrectionDecision.HardCorrect, report.Decision);
+            StringAssert.Contains("horizontal position", report.PrimaryReason);
         }
 
         private static MoveData CreateBaseline() {
@@ -108,6 +137,16 @@ namespace Fragsurf.ReplayHarness {
                 verticalAxis = 0f,
                 horizontalAxis = 0f
             };
+        }
+
+        private static MoveData CreateCharging() {
+            MoveData state = CreateBaseline();
+            state.moveType = MoveType.HeavyMelee;
+            state.meleeState = MoveData.MeleeState.Charging;
+            state.grounded = false;
+            state.velocity = new Vector3(1f, 0f, 1f);
+            state.meleeTimer = 0.3f;
+            return state;
         }
     }
 }

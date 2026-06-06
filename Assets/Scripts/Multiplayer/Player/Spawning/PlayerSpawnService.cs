@@ -21,6 +21,7 @@ namespace GAUNTLET.Networking
         public static PlayerSpawnService Instance { get; private set; }
 
         [SerializeField] private NetworkManager networkManager;
+        [SerializeField] private PlayerMaterialManager playerMaterialManager;
         [SerializeField] private Vector3 fallbackSpawnPosition = new Vector3(-9.6f, 5.84f, -14.8f);
         [SerializeField] private Vector3 fallbackSpawnEuler = Vector3.zero;
         [SerializeField] private bool randomizeSpawnSelection = true;
@@ -123,6 +124,7 @@ namespace GAUNTLET.Networking
             if (args.ConnectionState == RemoteConnectionState.Stopped)
             {
                 Debug.Log($"PlayerSpawnService: Client {conn.ClientId} disconnected.");
+                ResolvePlayerMaterialManager(createIfMissing: false)?.UnregisterPlayer(conn.ClientId);
             }
         }
 
@@ -183,6 +185,7 @@ namespace GAUNTLET.Networking
             NetworkedCharacter networkedCharacter = playerObject.GetComponent<NetworkedCharacter>();
             if (networkedCharacter != null)
             {
+                AssignLobbyMaterial(conn, networkedCharacter);
                 networkedCharacter.ApplyAuthoritativeSpawnPoseServer(position, rotation);
             }
             else
@@ -305,6 +308,40 @@ namespace GAUNTLET.Networking
             GetSpawnPose(out Vector3 position, out Quaternion rotation);
             networkedCharacter.ApplyAuthoritativeSpawnPoseServer(position, rotation);
             return true;
+        }
+
+        private void AssignLobbyMaterial(NetworkConnection conn, NetworkedCharacter networkedCharacter)
+        {
+            if (conn == null || networkedCharacter == null || !networkedCharacter.IsServerInitialized)
+                return;
+
+            PlayerMaterialManager manager = ResolvePlayerMaterialManager(createIfMissing: true);
+            if (manager == null)
+                return;
+
+            int joinIndex = manager.AssignMaterialForConnection(networkedCharacter, conn.ClientId);
+            if (logOwnershipDiagnostics)
+                Debug.Log($"PlayerSpawnService: Assigned material join index {joinIndex} to client {conn.ClientId}.", networkedCharacter);
+        }
+
+        private PlayerMaterialManager ResolvePlayerMaterialManager(bool createIfMissing)
+        {
+            if (playerMaterialManager != null)
+                return playerMaterialManager;
+
+            playerMaterialManager = PlayerMaterialManager.Instance;
+            if (playerMaterialManager != null)
+                return playerMaterialManager;
+
+            playerMaterialManager = FindFirstObjectByType<PlayerMaterialManager>();
+            if (playerMaterialManager != null)
+                return playerMaterialManager;
+
+            if (!createIfMissing)
+                return null;
+
+            playerMaterialManager = PlayerMaterialManager.GetOrCreate();
+            return playerMaterialManager;
         }
 
         private void LogConnectionSnapshot(NetworkConnection conn, string phase)

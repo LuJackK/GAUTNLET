@@ -406,6 +406,62 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0c6eacaa60569d947b383df03fff1ea3, type: 3}
   m_Name: 
   m_EditorClassIdentifier: FishNet.Runtime::FishNet.Managing.Scened.DefaultSceneProcessor
+--- !u!114 &293014353
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 293014343}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 59f5d51be28b4d8ca9a6c53c6683883d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GAUTNLET.Game::Fragsurf.Movement.PlayerMaterialManager
+  playerMaterialSets:
+  - label: Player1
+    helmet: {fileID: 2100000, guid: f1b82b570c2cb3d41b1dabd34941409e, type: 2}
+    body: {fileID: 2100000, guid: e91f6f8908bbac049b67cf53a211710c, type: 2}
+    gauntlet: {fileID: 2100000, guid: c13313761ea8a7c428db5ed1ed9fa0b2, type: 2}
+    rocketBody: {fileID: 2100000, guid: 9791780493412964bad934d8fc436e67, type: 2}
+    rocketSlot0: {fileID: 2100000, guid: a0c91022be6e1e64bb20abcbd84b0a45, type: 2}
+    rocketSlot1: {fileID: 2100000, guid: 61631e44e65066544a15dfdcb4a0991b, type: 2}
+    rocketSlot2: {fileID: 2100000, guid: a0c91022be6e1e64bb20abcbd84b0a45, type: 2}
+    rocketSlot3: {fileID: 2100000, guid: 9791780493412964bad934d8fc436e67, type: 2}
+  - label: Player2
+    helmet: {fileID: 2100000, guid: 8841ee9d8d76e6a41bbed96d28aef68a, type: 2}
+    body: {fileID: 2100000, guid: e7d2915f00d3df949abfe2f64e242eb9, type: 2}
+    gauntlet: {fileID: 2100000, guid: 81a8136c6d22b2648a24446fe3a951e8, type: 2}
+    rocketBody: {fileID: 2100000, guid: 61631e44e65066544a15dfdcb4a0991b, type: 2}
+    rocketSlot0: {fileID: 0}
+    rocketSlot1: {fileID: 0}
+    rocketSlot2: {fileID: 0}
+    rocketSlot3: {fileID: 0}
+  dontDestroyOnLoad: 1
+  releaseJoinSlotOnDisconnect: 0
+  logAssignments: 1
+--- !u!114 &293014357
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 293014343}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa32a03e30c14851bbc327bed8838a8f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GAUTNLET.Game::SceneMusicPlayer
+  scenePlaylists:
+  - sceneName: Map1
+    tracks:
+    - {fileID: 8300000, guid: a5a01598b9f48f445a709a1e6c391fab, type: 3}
+  dontDestroyOnLoad: 1
+  playForCurrentSceneOnStart: 1
+  stopWhenSceneHasNoPlaylist: 1
+  fadeSeconds: 1
+  volume: 0.8
+  outputMixerGroup: {fileID: 0}
 --- !u!1 &353212618
 GameObject:
   m_ObjectHideFlags: 0
@@ -553,6 +609,7 @@ GameObject:
   m_Component:
   - component: {fileID: 432085052}
   - component: {fileID: 432085051}
+  - component: {fileID: 432085053}
   m_Layer: 0
   m_Name: MenuController
   m_TagString: Untagged
@@ -577,6 +634,7 @@ MonoBehaviour:
   ipInputField: {fileID: 1379780283}
   menuCanvas: {fileID: 64523236}
   networkManager: {fileID: 293014346}
+  mapSelectScreen: {fileID: 432085053}
 --- !u!4 &432085052
 Transform:
   m_ObjectHideFlags: 0
@@ -592,6 +650,39 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &432085053
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 432085050}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fdc2a5c923874e2fa52f50d624d02b0f, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  maps:
+  - displayName: Map 1
+    previewImage: {fileID: 0}
+    sceneName: Map1
+  - displayName: Map 2
+    previewImage: {fileID: 0}
+    sceneName: Map2
+  menuCanvas: {fileID: 64523239}
+  mainMenuRoot: {fileID: 432085050}
+  screenRoot: {fileID: 0}
+  mapButtonContainer: {fileID: 0}
+  mapButtonPrefab: {fileID: 0}
+  backButton: {fileID: 0}
+  mapButtonSize: {x: 190, y: 190}
+  mapButtonSpacing: 18
+  cardColor: {r: 0.06, g: 0.06, b: 0.07, a: 0.92}
+  cardHighlightColor: {r: 0.9, g: 0.18, b: 0.04, a: 1}
+  screenTint: {r: 0, g: 0, b: 0, a: 0.55}
+  mapSelected:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!1 &441215130
 GameObject:
   m_ObjectHideFlags: 0
@@ -761,6 +852,12 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 7443408887813606051, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
       insertIndex: -1
       addedObject: {fileID: 293014352}
+    - targetCorrespondingSourceObject: {fileID: 7443408887813606051, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 293014353}
+    - targetCorrespondingSourceObject: {fileID: 7443408887813606051, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 293014357}
   m_SourcePrefab: {fileID: 100100000, guid: 0b650fca685f2eb41a86538aa883e4c1, type: 3}
 --- !u!1 &585423680
 GameObject:

@@ -139,6 +139,7 @@ namespace Fragsurf.Movement {
             if (Input.GetButton("Sprint"))  buttons |= InputFrame.BTN_DASH;
             if (Input.GetKey(KeyCode.Q))    buttons |= InputFrame.BTN_MELEE;
             if (Input.GetButton("Crouch"))  buttons |= InputFrame.BTN_CROUCH;
+            if (Input.GetKey(KeyCode.F))    buttons |= InputFrame.BTN_BLOCK;
             return buttons;
         }
 

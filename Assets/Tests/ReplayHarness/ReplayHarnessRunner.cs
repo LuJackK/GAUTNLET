@@ -203,10 +203,14 @@ namespace Fragsurf.ReplayHarness {
             state.slideDelay = sample.slideDelay;
             state.hasHitTarget = sample.hasHitTarget;
             state.meleeHitResolved = sample.meleeHitResolved;
+            state.isParrying = sample.isParrying;
+            state.wishParry = false;
+            state.parryTimer = sample.parryTimer;
             state.meleeHitTargetObjectId = sample.meleeHitTargetObjectId;
             state.meleeHitResolveTick = sample.meleeHitResolveTick;
             state.lastConsumedJumpPressFrame = sample.lastConsumedJumpPressFrame;
             state.lastConsumedDashPressFrame = sample.lastConsumedDashPressFrame;
+            state.lastConsumedParryPressFrame = sample.lastConsumedParryPressFrame;
             return state;
         }
     }

@@ -239,7 +239,11 @@ namespace Fragsurf.Movement {
                     _surfer.moveData.velocity += AirInputMovement ();
 
                     // Air Jump
-                    if (_surfer.moveData.wishJumpDown && _surfer.moveData.jumpCount > 0 && _surfer.moveData.jumpCount < _config.maxJumps && _surfer.moveData.jumpTimer >= _config.doubleJumpDelay) {
+                    if (_surfer.moveData.wishJumpDown
+                        && _surfer.moveData.jumpCount > 0
+                        && _surfer.moveData.jumpCount < _config.maxJumps
+                        && _surfer.moveData.jumpTimer >= _config.doubleJumpDelay
+                        && _surfer.moveData.stamina >= _config.doubleJumpCost) {
                         DoubleJump ();
                         _surfer.moveData.doubleJumpedThisFrame = true;
                     }

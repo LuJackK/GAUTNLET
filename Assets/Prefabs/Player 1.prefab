@@ -5117,8 +5117,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1182372079856243428}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.058430046, y: 0.93109506, z: 0.17197919, w: -0.31634015}
-  m_LocalPosition: {x: 0.8974905, y: -0.563468, z: 1.1683464}
+  m_LocalRotation: {x: 0.08098294, y: 0.8811103, z: -0.16355473, w: 0.43627542}
+  m_LocalPosition: {x: -4.844631, y: 2.3421698, z: 3.6927633}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -5157,7 +5157,7 @@ Camera:
     height: 1
   near clip plane: 0.3
   far clip plane: 1000
-  field of view: 60.000004
+  field of view: 59.5
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -7919,8 +7919,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 6286469610739894529}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.05843004, y: 0.93109506, z: 0.17197919, w: -0.31634012}
-  m_LocalPosition: {x: 0.8974905, y: -0.563468, z: 1.1683464}
+  m_LocalRotation: {x: 0.08098293, y: 0.8811103, z: -0.16355473, w: 0.43627542}
+  m_LocalPosition: {x: -4.844631, y: 2.3421698, z: 3.6927633}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7950,7 +7950,7 @@ MonoBehaviour:
     LookAtTarget: {fileID: 0}
     CustomLookAtTarget: 0
   Lens:
-    FieldOfView: 60.000004
+    FieldOfView: 59.5
     OrthographicSize: 5
     NearClipPlane: 0.3
     FarClipPlane: 1000
@@ -7998,12 +7998,12 @@ MonoBehaviour:
       Radius: 6.08
       Height: 2.96
     Bottom:
-      Radius: 0.94
-      Height: -0.81
+      Radius: 2.7
+      Height: -1
     SplineCurvature: 0.387
   RecenteringTarget: 2
   HorizontalAxis:
-    Value: -142.46954
+    Value: 127.31604
     Center: 0
     Range: {x: -180, y: 180}
     Wrap: 1
@@ -8013,7 +8013,7 @@ MonoBehaviour:
       Time: 2
     Restrictions: 0
   VerticalAxis:
-    Value: -7.419484
+    Value: 13.586399
     Center: 17.5
     Range: {x: -10, y: 45}
     Wrap: 0
@@ -9237,6 +9237,7 @@ GameObject:
   - component: {fileID: -8892953357829325516}
   - component: {fileID: -4746967813159440358}
   - component: {fileID: 7837431466360135714}
+  - component: {fileID: 891196516691995}
   m_Layer: 6
   m_Name: Player 1
   m_TagString: Untagged
@@ -9382,10 +9383,10 @@ MonoBehaviour:
     maxJumps: 2
     doubleJumpForce: 10
     doubleJumpDelay: 0.05
-    maxStamina: 3
-    staminaRegenRate: 1
+    maxStamina: 5
+    staminaRegenRate: 0.5
     staminaRegenDelay: 0.1
-    dashImpulse: 20
+    dashImpulse: 12
     dashDuration: 0.7
     dashCooldown: 0.5
     dashFrictionOverride: 0.35
@@ -9399,8 +9400,8 @@ MonoBehaviour:
     doubleJumpCost: 1
     friction: 6
     maxSpeed: 6
-    maxVelocity: 50
-    slopeLimit: 45
+    maxVelocity: 35
+    slopeLimit: 60.9
     clampAirSpeed: 0
     airCap: 0.4
     airAcceleration: 12
@@ -9431,7 +9432,7 @@ MonoBehaviour:
     underwaterFriction: 2
     underwaterGravity: 6
     underwaterVelocityDampening: 2
-    heavyMeleeChargeTime: 1.3
+    heavyMeleeChargeTime: 2
     heavyMeleeMinCharge: 0.3
     heavyMeleeBaseSpeed: 17
     heavyMeleeSpeedMultiplier: 1.3
@@ -9443,6 +9444,7 @@ MonoBehaviour:
     heavyMeleeCooldown: 1.5
     heavyMeleeChargeVelocityRetention: 0.465
     heavyMeleeChargeFriction: 6
+    parryDuration: 1
     heavyMeleeHitbox:
       id: gauntlet_heavy
       shape: 2
@@ -9465,6 +9467,7 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   _combatDebugLogging: 1
+  _parryDebugLogging: 1
 --- !u!114 &1034542312309700504
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9505,12 +9508,52 @@ MonoBehaviour:
   surfCharacter: {fileID: 1208076651893476614}
   slideTrailRenderer: {fileID: 5820374054595068741}
   trailOffset: {x: 0, y: 0, z: -1.5}
-  dashBurstPrefab: {fileID: 2584277319177967245}
+  slideTrailLifetime: 0.22
+  slideTrailWidthMultiplier: 1.15
+  slideTrailStartAlpha: 0.2
+  slideTrailMidAlpha: 0.1
+  dashBurstPrefab: {fileID: 0}
   dashBurstCount: 20
-  doubleJumpPrefab: {fileID: 2584277319177967245}
-  doubleJumpBurstCount: 25
-  meleeFireParticles: {fileID: 3539665501980735829}
+  spawnDashLines: 1
+  dashLineMaterial: {fileID: 0}
+  dashLineCountRange: {x: 4, y: 6}
+  dashLineColor: {r: 1, g: 1, b: 1, a: 1}
+  dashLineLengthRange: {x: 2.2, y: 4.2}
+  dashLineWidthRange: {x: 0.08, y: 0.14}
+  dashLineLifetime: 0.28
+  dashLineHeight: 1
+  dashLineBehindDistance: 0.9
+  dashLineSideSpread: 0.75
+  dashLineVerticalSpread: 0.4
+  cloudPoofPrefab: {fileID: 8259587790656569747, guid: b78c9a339f8155c40a6d10badbf08941, type: 3}
+  dashPoofBehindDistance: 1
+  jumpPoofUnderDistance: 1
+  doubleJumpPrefab: {fileID: 9011483015242606098, guid: dfc7bd2cc366e8645bda772c57e671b7, type: 3}
+  doubleJumpBurstCount: 20
+  meleeFireParticles: {fileID: 5601804793143719411, guid: 74ecb03bdd8a4ba43b463350394c9ed1, type: 3}
   meleeWeaponTransform: {fileID: 3071222218997074018}
+  meleePlasmaPrefab: {fileID: 3070928890741058142, guid: 72fd94ea19873064aaf943dc6c8efa73, type: 3}
+  meleePlasmaParentOverride: {fileID: 959209791630136558}
+  meleePlasmaFollowParent: 1
+  meleePlasmaActiveStates: 2
+  meleePlasmaLocalPosition: {x: 0.4, y: 0.75, z: -0.035}
+  meleePlasmaLocalRotation: {x: -44, y: -76, z: -101}
+  meleePlasmaLocalScale: {x: 1.34, y: 1.34, z: 1.34}
+  meleePlasmaStartScaleMultiplier: 0.2
+  meleePlasmaRotationSpeed: {x: 0, y: 0, z: 0}
+  meleePlasmaPhaseInDuration: 0.1
+  meleePlasmaPhaseOutDuration: 0.01
+  meleePlasmaFallbackDuration: 0.35
+  logMeleePlasmaDebug: 0
+  logParryShieldDebug: 1
+  parryShieldPrefab: {fileID: 1424367468124250380, guid: adbbc89498ef4744ea25d14159815fb6, type: 3}
+  parryShieldFollowPlayer: 1
+  parryShieldPhaseInDuration: 0.2
+  parryShieldPhaseOutDuration: 0.2
+  parryShieldCenterOffset: {x: 0, y: 0.3, z: 0}
+  parryShieldRotationOffset: {x: 0, y: 0, z: 0}
+  parryShieldScale: {x: 3.1, y: 3.1, z: 3.1}
+  parryShieldStartScaleMultiplier: 0.3
 --- !u!114 &3472746310373338021
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9530,10 +9573,19 @@ MonoBehaviour:
   crouchingParameterName: Crouching
   slidingParameterName: Sliding
   punchingParameterName: Punching
+  meleeChargingParameterName: MeleeCharging
+  meleeLungingParameterName: MeleeLunging
+  parryingParameterName: Parrying
+  dashingParameterName: Dashing
+  meleeChargeParameterName: MeleeCharge
+  meleeLungeParameterName: MeleeLunge
+  parryParameterName: Parry
+  parrySuccessParameterName: ParrySuccess
   dashParameterName: Dash
   dashDoneParameterName: DashDone
   doubleJumpParameterName: DoubleJump
   vfxController: {fileID: 8719693943810852010}
+  soundController: {fileID: 0}
 --- !u!114 &-7145852457052913079
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9568,6 +9620,7 @@ MonoBehaviour:
   _rollback: {fileID: -8892953357829325516}
   _inputCollector: {fileID: -4746967813159440358}
   _playerAiming: {fileID: 1034542312309700504}
+  _materialApplicator: {fileID: 0}
   _removeEventSystemsFromPlayerHierarchy: 1
   _enforceCameraOwnershipInvariant: 1
   _enforceVirtualCameraOwnershipInvariant: 1
@@ -9630,7 +9683,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584256086841699781
+  _initializedTimestamp: -8584208503235854937
   NetworkObserver: {fileID: 0}
   _enablePrediction: 1
   _predictionType: 0
@@ -9655,6 +9708,133 @@ MonoBehaviour:
     Rotation: {x: -0, y: -0, z: -0, w: 1}
     Scale: {x: 1, y: 1, z: 1}
     IsValid: 1
+--- !u!114 &891196516691995
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9017601728834380773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0ed2e4867d334428ae7f27f85921020e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: GAUTNLET.Game::Fragsurf.Movement.PlayerSoundController
+  audioSource: {fileID: 0}
+  meleeCollideWithPlayerSounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: 7a410f2b3abd1c74087429753358c497, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+      - clip: {fileID: 8300000, guid: e36df2fdf178fd34f97685b077497ede, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+    - layers:
+      - clip: {fileID: 8300000, guid: 2d481201c40a460429ef98ceb64d9e60, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+      - clip: {fileID: 8300000, guid: 6352bd927aeba33498a058468752dffa, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+    - layers:
+      - clip: {fileID: 8300000, guid: 09b697f669d1627498aab7be082d4aa9, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+      - clip: {fileID: 8300000, guid: e36df2fdf178fd34f97685b077497ede, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+  meleeChargingSounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: 895151a79c252b34ba065f9cbae95c72, type: 3}
+        volume: 0.3
+        pitch: 1
+        startDelay: 0
+        duration: 3
+      - clip: {fileID: 8300000, guid: 895151a79c252b34ba065f9cbae95c72, type: 3}
+        volume: 0.3
+        pitch: 1
+        startDelay: 0
+        duration: 3
+  meleeLungingSounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: 4218294bc731cac488a3e949546c66fb, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+  parryingSounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: af8b30054a94f534bb2b6ecbf4f1fdb1, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+  successfulParrySounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: 8514639be7a174147a891c2bd5d78473, type: 3}
+        volume: 0.7
+        pitch: 1
+        startDelay: 0
+        duration: 0
+      - clip: {fileID: 8300000, guid: 65682cffe599e7444a6dc038460126b1, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+  dashSounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: a4997c435d19e494e98ebf3bd35b0630, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0
+        duration: 0
+  doubleJumpSounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: a4997c435d19e494e98ebf3bd35b0630, type: 3}
+        volume: 0.717
+        pitch: 1
+        startDelay: 0
+        duration: 0
+      - clip: {fileID: 8300000, guid: 277de7314c7256f44a264dd3ea1f41db, type: 3}
+        volume: 1
+        pitch: 1
+        startDelay: 0.1
+        duration: 0
+  slidingSounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: f070548f5afe9544f89a5783006cc334, type: 3}
+        volume: 0.1
+        pitch: 1.238
+        startDelay: 0
+        duration: 0
 --- !u!1 &9042330015758534429
 GameObject:
   m_ObjectHideFlags: 0
@@ -9810,11 +9990,6 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: dfc7bd2cc366e8645bda772c57e671b7, type: 3}
---- !u!198 &2584277319177967245 stripped
-ParticleSystem:
-  m_CorrespondingSourceObject: {fileID: 9011483015242606098, guid: dfc7bd2cc366e8645bda772c57e671b7, type: 3}
-  m_PrefabInstance: {fileID: 6832535168968028319}
-  m_PrefabAsset: {fileID: 0}
 --- !u!4 &4856436075792882598 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 2141334527379057465, guid: dfc7bd2cc366e8645bda772c57e671b7, type: 3}

@@ -104,6 +104,10 @@ namespace Fragsurf.Movement {
         [Tooltip("Friction applied while sliding during charge")]
         public float heavyMeleeChargeFriction = 6.0f;
 
+        [Header("Parry")]
+        [Tooltip("How long the parry window stays active after pressing parry.")]
+        public float parryDuration = 0.35f;
+
         [Header("Hitboxes & Hurtboxes")]
         public HitboxDefinition heavyMeleeHitbox = new HitboxDefinition {
             id = "gauntlet_heavy",

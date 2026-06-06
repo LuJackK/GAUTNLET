@@ -12,6 +12,13 @@ namespace Fragsurf.Movement {
         }
 
         public StateDivergenceReport Evaluate(MoveData predicted, MoveData authoritative, int consecutiveObserveCount) {
+            return Evaluate(predicted, authoritative, consecutiveObserveCount, false);
+        }
+
+        public StateDivergenceReport Evaluate(MoveData predicted,
+                                              MoveData authoritative,
+                                              int consecutiveObserveCount,
+                                              bool relaxForeignMeleeChargeKinematics) {
             StateDivergenceReport report = new StateDivergenceReport {
                 HasPredictedState = predicted != null && authoritative != null,
                 Decision = CorrectionDecision.Ignore,
@@ -35,7 +42,10 @@ namespace Fragsurf.Movement {
             CompareForceField(report, predicted.isDashing != authoritative.isDashing, "isDashing", predicted.isDashing, authoritative.isDashing);
             CompareForceField(report, predicted.canAirDash != authoritative.canAirDash, "canAirDash", predicted.canAirDash, authoritative.canAirDash);
             CompareForceField(report, predicted.jumpCount != authoritative.jumpCount, "jumpCount", predicted.jumpCount, authoritative.jumpCount);
-            CompareForceField(report, predicted.grounded != authoritative.grounded, "grounded", predicted.grounded, authoritative.grounded);
+
+            // Skip grounded force-correct during active melee (Charging/Lunging) to prevent aggressive floor-snap
+            bool shouldCheckGrounded = !IsActiveMelee(predicted) && !IsActiveMelee(authoritative);
+            CompareForceField(report, shouldCheckGrounded && predicted.grounded != authoritative.grounded, "grounded", predicted.grounded, authoritative.grounded);
             CompareForceField(report, predicted.jumping != authoritative.jumping, "jumping", predicted.jumping, authoritative.jumping);
             CompareForceField(report, predicted.sliding != authoritative.sliding, "sliding", predicted.sliding, authoritative.sliding);
             CompareForceField(report, predicted.wasSliding != authoritative.wasSliding, "wasSliding", predicted.wasSliding, authoritative.wasSliding);
@@ -43,17 +53,52 @@ namespace Fragsurf.Movement {
             CompareForceField(report, predicted.meleeHitResolved != authoritative.meleeHitResolved, "meleeHitResolved", predicted.meleeHitResolved, authoritative.meleeHitResolved);
             CompareForceField(report, predicted.meleeHitTargetObjectId != authoritative.meleeHitTargetObjectId, "meleeHitTargetObjectId", predicted.meleeHitTargetObjectId, authoritative.meleeHitTargetObjectId);
             CompareForceField(report, predicted.meleeHitResolveTick != authoritative.meleeHitResolveTick, "meleeHitResolveTick", predicted.meleeHitResolveTick, authoritative.meleeHitResolveTick);
+            CompareForceField(report, predicted.isParrying != authoritative.isParrying, "isParrying", predicted.isParrying, authoritative.isParrying);
             CompareForceField(report, predicted.lastConsumedJumpPressFrame != authoritative.lastConsumedJumpPressFrame, "lastConsumedJumpPressFrame", predicted.lastConsumedJumpPressFrame, authoritative.lastConsumedJumpPressFrame);
             CompareForceField(report, predicted.lastConsumedDashPressFrame != authoritative.lastConsumedDashPressFrame, "lastConsumedDashPressFrame", predicted.lastConsumedDashPressFrame, authoritative.lastConsumedDashPressFrame);
+            CompareForceField(report, predicted.lastConsumedParryPressFrame != authoritative.lastConsumedParryPressFrame, "lastConsumedParryPressFrame", predicted.lastConsumedParryPressFrame, authoritative.lastConsumedParryPressFrame);
 
             if (report.HasFatalMismatch)
                 return FinalizeReport(report);
 
-            CompareHardDistance(report, Vector3.Distance(predicted.origin, authoritative.origin), _config.PositionHardThreshold, "position", "m");
-            CompareHardDistance(report, Vector3.Distance(predicted.velocity, authoritative.velocity), _config.VelocityHardThreshold, "velocity", "m/s");
+            bool relaxMeleeCharge = relaxForeignMeleeChargeKinematics && IsMeleeCharge(predicted) && IsMeleeCharge(authoritative);
+            if (relaxMeleeCharge) {
+                CompareHardDistance(report,
+                                    HorizontalDistance(predicted.origin, authoritative.origin),
+                                    _config.ForeignMeleeChargeHorizontalPositionHardThreshold,
+                                    "horizontal position",
+                                    "m");
+                CompareHardDistance(report,
+                                    Mathf.Abs(predicted.origin.y - authoritative.origin.y),
+                                    _config.ForeignMeleeChargeVerticalPositionHardThreshold,
+                                    "vertical position",
+                                    "m");
+                CompareHardDistance(report,
+                                    HorizontalDistance(predicted.velocity, authoritative.velocity),
+                                    _config.ForeignMeleeChargeHorizontalVelocityHardThreshold,
+                                    "horizontal velocity",
+                                    "m/s");
+                CompareHardDistance(report,
+                                    Mathf.Abs(predicted.velocity.y - authoritative.velocity.y),
+                                    _config.ForeignMeleeChargeVerticalVelocityHardThreshold,
+                                    "vertical velocity",
+                                    "m/s");
+            } else {
+                CompareHardDistance(report, Vector3.Distance(predicted.origin, authoritative.origin), _config.PositionHardThreshold, "position", "m");
+
+                // Relax velocity hard-threshold during melee charge to allow for velocity retention timing differences.
+                float velocityThreshold = IsActiveMelee(predicted) || IsActiveMelee(authoritative)
+                    ? _config.VelocityHardThreshold * 2f
+                    : _config.VelocityHardThreshold;
+                CompareHardDistance(report, Vector3.Distance(predicted.velocity, authoritative.velocity), velocityThreshold, "velocity", "m/s");
+            }
+
             CompareHardDistance(report, Mathf.Abs(Mathf.DeltaAngle(predicted.viewAngles.y, authoritative.viewAngles.y)), _config.YawHardThreshold, "yaw", "deg");
             CompareHardDistance(report, Mathf.Abs(Mathf.DeltaAngle(predicted.viewAngles.x, authoritative.viewAngles.x)), _config.PitchHardThreshold, "pitch", "deg");
-            CompareHardDistance(report, Mathf.Abs(predicted.fallingVelocity - authoritative.fallingVelocity), _config.FallingVelocityHardThreshold, "fallingVelocity", string.Empty);
+            float fallingVelocityThreshold = relaxMeleeCharge
+                ? _config.ForeignMeleeChargeFallingVelocityHardThreshold
+                : _config.FallingVelocityHardThreshold;
+            CompareHardDistance(report, Mathf.Abs(predicted.fallingVelocity - authoritative.fallingVelocity), fallingVelocityThreshold, "fallingVelocity", string.Empty);
             CompareHardDistance(report, Vector3.Angle(NormalizeOrZero(predicted.slideDirection), NormalizeOrZero(authoritative.slideDirection)), _config.SlideDirectionHardThreshold, "slideDirection", "deg");
             CompareHardDistance(report, Mathf.Abs(predicted.slideSpeedCurrent - authoritative.slideSpeedCurrent), _config.SlideSpeedHardThreshold, "slideSpeedCurrent", string.Empty);
 
@@ -74,8 +119,12 @@ namespace Fragsurf.Movement {
             AddWeightedFloat(report, Mathf.Abs(predicted.renderCrouchLerp - authoritative.renderCrouchLerp), _config.LerpTolerance, _config.CrouchLerpWeight, "renderCrouchLerp");
             AddWeightedBool(report, predicted.uncrouchDown != authoritative.uncrouchDown, _config.CrouchStateWeight, "uncrouchDown", predicted.uncrouchDown, authoritative.uncrouchDown);
             AddWeightedFloat(report, Mathf.Abs(predicted.slideDelay - authoritative.slideDelay), _config.TimerTolerance, _config.TimerWeight, "slideDelay");
-            AddWeightedFloat(report, Mathf.Abs(predicted.meleeTimer - authoritative.meleeTimer), _config.TimerTolerance, _config.TimerWeight, "meleeTimer");
+            float meleeTimerTolerance = relaxMeleeCharge
+                ? _config.ForeignMeleeChargeTimerTolerance
+                : _config.TimerTolerance;
+            AddWeightedFloat(report, Mathf.Abs(predicted.meleeTimer - authoritative.meleeTimer), meleeTimerTolerance, _config.TimerWeight, "meleeTimer");
             AddWeightedFloat(report, Mathf.Abs(predicted.meleeCooldownTimer - authoritative.meleeCooldownTimer), _config.TimerTolerance, _config.TimerWeight, "meleeCooldownTimer");
+            AddWeightedFloat(report, Mathf.Abs(predicted.parryTimer - authoritative.parryTimer), _config.TimerTolerance, _config.TimerWeight, "parryTimer");
 
             AddDiagnosticFloat(report, Mathf.Abs(predicted.forwardMove - authoritative.forwardMove), _config.InputEchoTolerance, _config.InputEchoWeight, "forwardMove");
             AddDiagnosticFloat(report, Mathf.Abs(predicted.sideMove - authoritative.sideMove), _config.InputEchoTolerance, _config.InputEchoWeight, "sideMove");
@@ -89,7 +138,10 @@ namespace Fragsurf.Movement {
                     : report.PrimaryReason;
             } else if (report.WeightedScore >= _config.ObserveWeightedScoreThreshold) {
                 report.ConsecutiveObserveFrames = consecutiveObserveCount + 1;
-                if (report.ConsecutiveObserveFrames >= _config.ConsecutiveObserveFramesBeforeHardCorrect) {
+                int observeFramesBeforeHardCorrect = relaxMeleeCharge
+                    ? _config.ForeignMeleeChargeConsecutiveObserveFramesBeforeHardCorrect
+                    : _config.ConsecutiveObserveFramesBeforeHardCorrect;
+                if (report.ConsecutiveObserveFrames >= observeFramesBeforeHardCorrect) {
                     report.Decision = CorrectionDecision.HardCorrect;
                     report.PrimaryReason = $"persistent medium drift for {report.ConsecutiveObserveFrames} frames";
                     report.TopMismatches.Insert(0, report.PrimaryReason);
@@ -105,6 +157,12 @@ namespace Fragsurf.Movement {
 
         private static Vector3 NormalizeOrZero(Vector3 value) {
             return value.sqrMagnitude > 0.0001f ? value.normalized : Vector3.zero;
+        }
+
+        private static float HorizontalDistance(Vector3 predicted, Vector3 authoritative) {
+            float deltaX = predicted.x - authoritative.x;
+            float deltaZ = predicted.z - authoritative.z;
+            return Mathf.Sqrt(deltaX * deltaX + deltaZ * deltaZ);
         }
 
         private void CompareHardDistance(StateDivergenceReport report, float delta, float threshold, string field, string suffix) {
@@ -194,6 +252,19 @@ namespace Fragsurf.Movement {
 
             report.Summary = sb.ToString();
             return report;
+        }
+
+        private static bool IsActiveMelee(MoveData state) {
+            if (state == null)
+                return false;
+            return state.moveType == MoveType.HeavyMelee &&
+                   (state.meleeState == MoveData.MeleeState.Charging || state.meleeState == MoveData.MeleeState.Lunging);
+        }
+
+        private static bool IsMeleeCharge(MoveData state) {
+            return state != null &&
+                   state.moveType == MoveType.HeavyMelee &&
+                   state.meleeState == MoveData.MeleeState.Charging;
         }
     }
 }

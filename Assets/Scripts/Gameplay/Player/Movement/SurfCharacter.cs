@@ -68,6 +68,7 @@ namespace Fragsurf.Movement {
         public Hurtbox playerHurtboxComponent;
         public LayerMask enemyLayerMask;
         [SerializeField] private bool _combatDebugLogging = true;
+        [SerializeField] private bool _parryDebugLogging = true;
         
         private GameObject _groundObject;
         private Vector3 _baseVelocity;
@@ -93,6 +94,8 @@ namespace Fragsurf.Movement {
         private readonly int[] _simulationDiagnosticFrameAtSlot = new int[DIAGNOSTIC_BUFFER_SIZE];
         private string _currentMovementQueryDiagnostics = string.Empty;
         private string _currentMeleeQueryDiagnostics = string.Empty;
+        private bool _loggedMissingCharacterRenderer;
+        private bool _loggedFoundCharacterRenderer;
 
         ///// Properties /////
 
@@ -353,6 +356,7 @@ namespace Fragsurf.Movement {
         private int _frameCounter;
         private float _standaloneSimulationAccumulator;
         private int _lastRenderedTick = -1;
+        private MoveData _lastPresentedState;
         private bool _loggedSimulationNotReady;
 
         private const int MaxStandaloneSimulationStepsPerFrame = 4;
@@ -403,10 +407,13 @@ namespace Fragsurf.Movement {
             state.dashStartedThisFrame = false;
             state.doubleJumpedThisFrame = false;
             state.meleeHitThisFrame = false;
+            state.parryStartedThisFrame = false;
+            state.parrySuccessThisFrame = false;
 
             _colliderObject.transform.rotation = Quaternion.identity;
 
             ApplyInputToState(ref state, input);
+            UpdateParryState(ref state, deltaTime);
             UpdateMeleeState(ref state, deltaTime);
             
             // Previous movement code (Removed to fix double-movement bug in networked mode)
@@ -740,16 +747,26 @@ namespace Fragsurf.Movement {
                 }
                 
                 bool isNewTick = _moveData.frame > _lastRenderedTick;
+                MoveData presentationPrevState = _lastPresentedState ?? _prevState;
                 if (characterRenderer != null) {
-                    characterRenderer.ApplyState(_moveData, _prevState, isNewTick);
+                    characterRenderer.ApplyState(_moveData, presentationPrevState, isNewTick);
                 }
-                if (isNewTick) _lastRenderedTick = _moveData.frame;
+                if (isNewTick) {
+                    _lastRenderedTick = _moveData.frame;
+                    _lastPresentedState = _moveData.Clone();
+                }
             } else {
                 if (ShouldApplyCharacterTransformInterpolation()) {
                     transform.position = _moveData.origin;
                 }
+                bool isNewTick = _moveData.frame > _lastRenderedTick;
+                MoveData presentationPrevState = _lastPresentedState ?? _prevState;
                 if (characterRenderer != null) {
-                    characterRenderer.ApplyState(_moveData, _prevState, true);
+                    characterRenderer.ApplyState(_moveData, presentationPrevState, isNewTick);
+                }
+                if (isNewTick) {
+                    _lastRenderedTick = _moveData.frame;
+                    _lastPresentedState = _moveData.Clone();
                 }
             }
 
@@ -798,13 +815,16 @@ namespace Fragsurf.Movement {
             if (_networkedCharacter == null)
                 return true;
 
-            // Only suppress transform writes for pure client-side proxies.
-            // A host is also a client, but still needs to present server-authoritative
-            // remote players on its own screen.
+            // Only suppress transform writes for pure client-side proxies when
+            // state forwarding is disabled and another sync path is expected to
+            // drive visuals (eg. NetworkTransform).
             if (_networkedCharacter.IsClientInitialized &&
                 !_networkedCharacter.IsOwner &&
-                !_networkedCharacter.IsServerInitialized)
-                return false;
+                !_networkedCharacter.IsServerInitialized) {
+                FishNet.Object.NetworkObject networkObject = _networkedCharacter.NetworkObject;
+                if (networkObject != null && !networkObject.EnableStateForwarding)
+                    return false;
+            }
 
             return true;
         }
@@ -892,6 +912,11 @@ namespace Fragsurf.Movement {
                 state.lastConsumedDashPressFrame = input.frame;
 
             state.wishMelee      = input.HasButton(InputFrame.BTN_MELEE);
+            bool parryPressedEdge = input.IsJustPressed(InputFrame.BTN_BLOCK);
+            state.wishParry      = parryPressedEdge && state.lastConsumedParryPressFrame != input.frame;
+            state.parryStartedThisFrame = state.wishParry;
+            if (state.parryStartedThisFrame)
+                state.lastConsumedParryPressFrame = input.frame;
             bool crouchHeld = input.HasButton(InputFrame.BTN_CROUCH);
             state.slideRequested = crouchHeld;
             state.crouching      = ShouldIgnoreCrouchForForeignSimulation() ? false : crouchHeld;
@@ -917,6 +942,18 @@ namespace Fragsurf.Movement {
             
             state.viewAngles = new Vector3(input.LookPitch, input.LookYaw, 0f);
 
+        }
+
+        private void UpdateParryState(ref MoveData state, float deltaTime) {
+            if (state.parryTimer > 0f)
+                state.parryTimer = Mathf.Max(0f, state.parryTimer - deltaTime);
+
+            if (state.parryStartedThisFrame) {
+                float duration = movementConfig != null ? movementConfig.parryDuration : 0.35f;
+                state.parryTimer = Mathf.Max(0f, duration);
+            }
+
+            state.isParrying = state.parryTimer > 0f;
         }
 
         private bool ShouldIgnoreCrouchForForeignSimulation() {
@@ -1010,7 +1047,16 @@ namespace Fragsurf.Movement {
 
             if (state.moveType == MoveType.Walk) {
                 if (state.wishMelee && state.meleeCooldownTimer <= 0f) {
-                     BeginMeleeCharge(ref state);
+                    // Track how long the melee button has been held
+                    state.meleeHoldTimer += deltaTime;
+                    
+                    // Only enter charging state after minimum duration is held
+                    if (state.meleeHoldTimer >= movementConfig.heavyMeleeMinCharge) {
+                        BeginMeleeCharge(ref state);
+                    }
+                } else {
+                    // Reset hold timer when button is not pressed or cooldown is active
+                    state.meleeHoldTimer = 0f;
                 }
             } else if (state.moveType == MoveType.HeavyMelee) {
                 state.meleeTimer += deltaTime;
@@ -1047,6 +1093,7 @@ namespace Fragsurf.Movement {
             state.moveType = MoveType.HeavyMelee;
             state.meleeState = MoveData.MeleeState.Charging;
             state.meleeTimer = 0f;
+            state.meleeHoldTimer = 0f;
             state.velocity *= movementConfig.heavyMeleeChargeVelocityRetention;
             state.velocity.y = 0f;
         }
@@ -1083,6 +1130,7 @@ namespace Fragsurf.Movement {
             state.moveType = MoveType.Walk;
             state.meleeState = MoveData.MeleeState.None;
             state.meleeTimer = 0f;
+            state.meleeHoldTimer = 0f;
 
             if (applyCooldown) {
                 state.meleeCooldownTimer = movementConfig.heavyMeleeCooldown;
@@ -1093,7 +1141,21 @@ namespace Fragsurf.Movement {
             state.moveType = MoveType.Walk;
             state.meleeState = MoveData.MeleeState.None;
             state.meleeTimer = 0f;
+            state.meleeHoldTimer = 0f;
             state.meleeCooldownTimer = movementConfig.heavyMeleeCooldown;
+        }
+
+        public bool IsParrying {
+            get {
+                return _moveData != null && _moveData.isParrying;
+            }
+        }
+
+        public void MarkParrySuccess() {
+            if (_moveData == null)
+                return;
+
+            _moveData.parrySuccessThisFrame = true;
         }
 
         [System.Obsolete("Legacy method. Melee hit detection now handled by Hitbox component. Use ProcessHitboxes() instead.", false)]

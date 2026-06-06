@@ -77,8 +77,13 @@ namespace Fragsurf.ReplayHarness {
                     meleeHitResolved = true,
                     meleeHitTargetObjectId = 1337,
                     meleeHitResolveTick = 40,
+                    isParrying = true,
+                    parryTimer = 0.25f,
+                    parryStartedThisFrame = true,
+                    parrySuccessThisFrame = true,
                     lastConsumedJumpPressFrame = 37,
-                    lastConsumedDashPressFrame = 39
+                    lastConsumedDashPressFrame = 39,
+                    lastConsumedParryPressFrame = 41
                 };
 
                 character.moveData = source.Clone();
@@ -250,8 +255,13 @@ namespace Fragsurf.ReplayHarness {
             Assert.AreEqual(expected.meleeHitResolved, actual.meleeHitResolved);
             Assert.AreEqual(expected.meleeHitTargetObjectId, actual.meleeHitTargetObjectId);
             Assert.AreEqual(expected.meleeHitResolveTick, actual.meleeHitResolveTick);
+            Assert.AreEqual(expected.isParrying, actual.isParrying);
+            Assert.AreEqual(expected.parryTimer, actual.parryTimer);
+            Assert.AreEqual(expected.parryStartedThisFrame, actual.parryStartedThisFrame);
+            Assert.AreEqual(expected.parrySuccessThisFrame, actual.parrySuccessThisFrame);
             Assert.AreEqual(expected.lastConsumedJumpPressFrame, actual.lastConsumedJumpPressFrame);
             Assert.AreEqual(expected.lastConsumedDashPressFrame, actual.lastConsumedDashPressFrame);
+            Assert.AreEqual(expected.lastConsumedParryPressFrame, actual.lastConsumedParryPressFrame);
         }
 
         private static void AssertVector3Equal(Vector3 expected, Vector3 actual) {

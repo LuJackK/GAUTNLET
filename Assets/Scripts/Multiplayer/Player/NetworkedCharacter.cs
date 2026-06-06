@@ -18,6 +18,7 @@ namespace Fragsurf.Movement {
         [SerializeField] private RollbackManager _rollback;
         [SerializeField] private LocalInputCollector _inputCollector;
         [SerializeField] private PlayerAiming _playerAiming;
+        [SerializeField] private PlayerMaterialApplicator _materialApplicator;
 
         [Header("UI/Input Ownership Guard")]
         [SerializeField] private bool _removeEventSystemsFromPlayerHierarchy = true;
@@ -35,6 +36,7 @@ namespace Fragsurf.Movement {
         private NetworkedCharacterCameraOwnershipGuard _cameraOwnershipGuard;
         private NetworkedCharacterPredictionReconcileService _predictionReconcileService;
         private readonly SyncVar<int> _currentHealth = new();
+        private readonly SyncVar<int> _playerMaterialJoinIndex = new(-1);
         private InputFrame _lastReplicatedInput;
         private bool _hasLastReplicatedInput;
         private bool _hurtboxSubscribed;
@@ -110,6 +112,7 @@ namespace Fragsurf.Movement {
         internal Vector3 CurrentVelocity => (_character != null && _character.moveData != null) ? _character.moveData.velocity : Vector3.zero;
         public int CurrentHealth => _currentHealth.Value;
         public int MaxHealth => Mathf.Max(1, _maxHealth);
+        public int PlayerMaterialJoinIndex => _playerMaterialJoinIndex.Value;
 
         public event System.Action<int, int, bool> HealthChanged;
 
@@ -128,12 +131,14 @@ namespace Fragsurf.Movement {
                 _inputCollector = GetComponent<LocalInputCollector>();
             if (_playerAiming == null)
                 _playerAiming = GetComponentInChildren<PlayerAiming>(true);
+            EnsurePlayerMaterialApplicator();
             ValidateAuthorityContract();
 
             _ownershipGate = new NetworkedCharacterOwnershipGateController(this);
             _cameraOwnershipGuard = new NetworkedCharacterCameraOwnershipGuard(this);
             _predictionReconcileService = new NetworkedCharacterPredictionReconcileService(this);
             _currentHealth.OnChange += CurrentHealth_OnChange;
+            _playerMaterialJoinIndex.OnChange += PlayerMaterialJoinIndex_OnChange;
             _currentHealth.Value = MaxHealth;
 
             SetLocalControlEnabledInternal(false, preserveHeldButtons: false);
@@ -158,6 +163,7 @@ namespace Fragsurf.Movement {
             _hasLastReplicatedInput = false;
             _lastReplicatedInput = default;
             _ownershipGate.OnNetworkStart();
+            ApplyPlayerMaterialJoinIndex(_playerMaterialJoinIndex.Value);
 
             if (TimeManager != null) {
                 TimeManager.OnTick += TimeManager_OnTick;
@@ -170,6 +176,7 @@ namespace Fragsurf.Movement {
         public override void OnStartClient() {
             base.OnStartClient();
             _ownershipGate.OnClientStart();
+            ApplyPlayerMaterialJoinIndex(_playerMaterialJoinIndex.Value);
             EnsureHealthBillboard();
         }
 
@@ -201,6 +208,7 @@ namespace Fragsurf.Movement {
         private void OnDestroy() {
             UnsubscribeFromHurtbox();
             _currentHealth.OnChange -= CurrentHealth_OnChange;
+            _playerMaterialJoinIndex.OnChange -= PlayerMaterialJoinIndex_OnChange;
         }
 
         private void LateUpdate() {
@@ -286,6 +294,15 @@ namespace Fragsurf.Movement {
 
             ApplyAuthoritativeSpawnPoseLocal(position, rotation);
             ApplyAuthoritativeSpawnPoseObserversRpc(position, rotation);
+        }
+
+        [Server]
+        public void SetPlayerMaterialJoinIndexServer(int joinIndex) {
+            if (!IsServerInitialized)
+                return;
+
+            _playerMaterialJoinIndex.Value = joinIndex;
+            ApplyPlayerMaterialJoinIndex(joinIndex);
         }
 
         [ObserversRpc]
@@ -425,7 +442,58 @@ namespace Fragsurf.Movement {
             HealthChanged?.Invoke(prev, next, asServer);
         }
 
+        private void PlayerMaterialJoinIndex_OnChange(int prev, int next, bool asServer) {
+            ApplyPlayerMaterialJoinIndex(next);
+        }
+
+        private void ApplyPlayerMaterialJoinIndex(int joinIndex) {
+            if (joinIndex < 0)
+                return;
+
+            EnsurePlayerMaterialApplicator();
+            if (_materialApplicator != null)
+                _materialApplicator.SetLobbyJoinIndex(joinIndex);
+        }
+
+        private void EnsurePlayerMaterialApplicator() {
+            if (_materialApplicator == null)
+                _materialApplicator = GetComponent<PlayerMaterialApplicator>();
+
+            if (_materialApplicator == null)
+                _materialApplicator = GetComponentInChildren<PlayerMaterialApplicator>(true);
+
+            if (_materialApplicator == null)
+                _materialApplicator = gameObject.AddComponent<PlayerMaterialApplicator>();
+        }
+
         private void PlayerHurtboxComponent_OnTakeHit(Hitbox hitbox) {
+            if (!IsServerInitialized || _respawnRoutineRunning)
+                return;
+
+            if (_character != null && _character.IsParrying) {
+                NetworkedCharacter attacker = ResolveHitboxOwner(hitbox);
+                _character.MarkParrySuccess();
+
+                if (attacker != null && attacker != this) {
+                    if (_combatDebugLogging) {
+                        string attackerId = hitbox != null ? hitbox.definition.id : "<null>";
+                        Debug.Log($"[NetworkedCharacter] Server parry reflected damage. defenderObjectId={ObjectId}, attackerObjectId={attacker.ObjectId}, attackerHitboxId={attackerId}", this);
+                    }
+
+                    attacker.ApplyDamageFromHitboxServer(hitbox, "parry-reflect");
+                    return;
+                }
+
+                if (_combatDebugLogging)
+                    Debug.LogWarning($"[NetworkedCharacter] Parry blocked damage but no valid attacker was resolved. defenderObjectId={ObjectId}", this);
+                return;
+            }
+
+            ApplyDamageFromHitboxServer(hitbox, "direct-hit");
+        }
+
+        [Server]
+        private void ApplyDamageFromHitboxServer(Hitbox hitbox, string reason) {
             if (!IsServerInitialized || _respawnRoutineRunning)
                 return;
 
@@ -433,12 +501,16 @@ namespace Fragsurf.Movement {
             int nextHealth = Mathf.Max(0, _currentHealth.Value - damage);
             if (_combatDebugLogging) {
                 string attackerId = hitbox != null ? hitbox.definition.id : "<null>";
-                Debug.Log($"[NetworkedCharacter] Server damage received. objectId={ObjectId}, attackerHitboxId={attackerId}, damage={damage}, prevHealth={_currentHealth.Value}, nextHealth={nextHealth}", this);
+                Debug.Log($"[NetworkedCharacter] Server damage received. objectId={ObjectId}, attackerHitboxId={attackerId}, reason={reason}, damage={damage}, prevHealth={_currentHealth.Value}, nextHealth={nextHealth}", this);
             }
             _currentHealth.Value = nextHealth;
 
             if (nextHealth <= 0)
                 StartRespawnRoutineServer();
+        }
+
+        private static NetworkedCharacter ResolveHitboxOwner(Hitbox hitbox) {
+            return hitbox != null ? hitbox.GetComponentInParent<NetworkedCharacter>() : null;
         }
 
         private int ResolveDamage(Hitbox hitbox) {
@@ -558,7 +630,11 @@ namespace Fragsurf.Movement {
 
             bool isPureClientProxy = IsClientInitialized && !IsServerInitialized && !DebugHasLocalAuthority;
             if (isPureClientProxy) {
-                return false;
+                // Spectators must still execute prediction ticks to consume
+                // state-forwarded replicate streams. If forwarding is disabled,
+                // fall back to external sync paths (eg. NetworkTransform).
+                if (NetworkObject == null || !NetworkObject.EnableStateForwarding)
+                    return false;
             }
 
             return true;

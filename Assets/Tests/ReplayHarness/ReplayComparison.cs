@@ -114,6 +114,7 @@ namespace Fragsurf.ReplayHarness {
             CompareBool(expected.uncrouchDown, actual.uncrouchDown, "uncrouchDown", sb);
             CompareBool(expected.hasHitTarget, actual.hasHitTarget, "hasHitTarget", sb);
             CompareBool(expected.meleeHitResolved, actual.meleeHitResolved, "meleeHitResolved", sb);
+            CompareBool(expected.isParrying, actual.isParrying, "isParrying", sb);
             CompareBool(expected.groundedTemp, actual.groundedTemp, "groundedTemp", sb);
 
             CompareInt(expected.jumpCount, actual.jumpCount, "jumpCount", sb);
@@ -121,6 +122,7 @@ namespace Fragsurf.ReplayHarness {
             CompareInt((int)expected.meleeState, (int)actual.meleeState, "meleeState", sb);
             CompareInt(expected.lastConsumedJumpPressFrame, actual.lastConsumedJumpPressFrame, "lastConsumedJumpPressFrame", sb);
             CompareInt(expected.lastConsumedDashPressFrame, actual.lastConsumedDashPressFrame, "lastConsumedDashPressFrame", sb);
+            CompareInt(expected.lastConsumedParryPressFrame, actual.lastConsumedParryPressFrame, "lastConsumedParryPressFrame", sb);
             CompareInt(expected.meleeHitTargetObjectId, actual.meleeHitTargetObjectId, "meleeHitTargetObjectId", sb);
             CompareInt(expected.meleeHitResolveTick, actual.meleeHitResolveTick, "meleeHitResolveTick", sb);
 
@@ -132,6 +134,7 @@ namespace Fragsurf.ReplayHarness {
             CompareFloat(expected.dashCooldownTimer, actual.dashCooldownTimer, settings.scalarTolerance, "dashCooldownTimer", sb);
             CompareFloat(expected.meleeTimer, actual.meleeTimer, settings.scalarTolerance, "meleeTimer", sb);
             CompareFloat(expected.meleeCooldownTimer, actual.meleeCooldownTimer, settings.scalarTolerance, "meleeCooldownTimer", sb);
+            CompareFloat(expected.parryTimer, actual.parryTimer, settings.scalarTolerance, "parryTimer", sb);
             CompareFloat(expected.crouchLerp, actual.crouchLerp, settings.scalarTolerance, "crouchLerp", sb);
             CompareFloat(expected.renderCrouchLerp, actual.renderCrouchLerp, settings.scalarTolerance, "renderCrouchLerp", sb);
             CompareFloat(expected.slideSpeedCurrent, actual.slideSpeedCurrent, settings.scalarTolerance, "slideSpeedCurrent", sb);

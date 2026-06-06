@@ -22,8 +22,6 @@ namespace Fragsurf.Movement {
         public const byte BTN_DASH   = 1 << 1;
         public const byte BTN_MELEE  = 1 << 2;
         public const byte BTN_CROUCH = 1 << 3;
-        // Reserved as part of the authoritative input contract even though current
-        // movement/combat simulation does not consume it yet.
         public const byte BTN_BLOCK  = 1 << 4;
 
         public bool HasButton(byte btn)    => (buttons & btn) != 0;

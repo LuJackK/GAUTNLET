@@ -25,9 +25,12 @@ namespace Fragsurf.ReplayHarness {
         public bool groundedTemp;
         public bool hasHitTarget;
         public bool meleeHitResolved;
+        public bool isParrying;
+        public float parryTimer;
         public int jumpCount;
         public int lastConsumedJumpPressFrame;
         public int lastConsumedDashPressFrame;
+        public int lastConsumedParryPressFrame;
         public int meleeHitTargetObjectId;
         public int meleeHitResolveTick;
         public float jumpTimer;
@@ -76,9 +79,12 @@ namespace Fragsurf.ReplayHarness {
                 groundedTemp = state != null && state.groundedTemp,
                 hasHitTarget = state != null && state.hasHitTarget,
                 meleeHitResolved = state != null && state.meleeHitResolved,
+                isParrying = state != null && state.isParrying,
+                parryTimer = (state != null) ? state.parryTimer : 0f,
                 jumpCount = (state != null) ? state.jumpCount : 0,
                 lastConsumedJumpPressFrame = (state != null) ? state.lastConsumedJumpPressFrame : -1,
                 lastConsumedDashPressFrame = (state != null) ? state.lastConsumedDashPressFrame : -1,
+                lastConsumedParryPressFrame = (state != null) ? state.lastConsumedParryPressFrame : -1,
                 meleeHitTargetObjectId = (state != null) ? state.meleeHitTargetObjectId : 0,
                 meleeHitResolveTick = (state != null) ? state.meleeHitResolveTick : -1,
                 jumpTimer = (state != null) ? state.jumpTimer : 0f,
@@ -136,9 +142,12 @@ namespace Fragsurf.ReplayHarness {
                 HashInt(ref hash, BoolToInt(state.uncrouchDown));
                 HashInt(ref hash, BoolToInt(state.hasHitTarget));
                 HashInt(ref hash, BoolToInt(state.meleeHitResolved));
+                HashInt(ref hash, BoolToInt(state.isParrying));
+                HashInt(ref hash, Quantize(state.parryTimer));
                 HashInt(ref hash, state.jumpCount);
                 HashInt(ref hash, state.lastConsumedJumpPressFrame);
                 HashInt(ref hash, state.lastConsumedDashPressFrame);
+                HashInt(ref hash, state.lastConsumedParryPressFrame);
                 HashInt(ref hash, state.meleeHitTargetObjectId);
                 HashInt(ref hash, state.meleeHitResolveTick);
                 HashInt(ref hash, Quantize(state.jumpTimer));

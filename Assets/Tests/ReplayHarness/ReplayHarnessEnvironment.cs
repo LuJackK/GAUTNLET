@@ -108,9 +108,15 @@ namespace Fragsurf.ReplayHarness {
             state.meleeCooldownTimer = 0f;
             state.wishMelee = false;
             state.hasHitTarget = false;
+            state.wishParry = false;
+            state.isParrying = false;
+            state.parryTimer = 0f;
+            state.lastConsumedParryPressFrame = -1;
             state.dashStartedThisFrame = false;
             state.doubleJumpedThisFrame = false;
             state.meleeHitThisFrame = false;
+            state.parryStartedThisFrame = false;
+            state.parrySuccessThisFrame = false;
 
             character.moveData = state;
             character.LoadState(state);
@@ -248,7 +254,8 @@ namespace Fragsurf.ReplayHarness {
                 heavyMeleeLungeDuration = 0.25f,
                 heavyMeleeRecoveryDuration = 0.25f,
                 heavyMeleeCooldown = 0.75f,
-                heavyMeleeTurnClamp = 0.7f
+                heavyMeleeTurnClamp = 0.7f,
+                parryDuration = 0.35f
             };
         }
     }

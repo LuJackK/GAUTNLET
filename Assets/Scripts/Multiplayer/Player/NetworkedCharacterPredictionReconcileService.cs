@@ -48,6 +48,7 @@ namespace Fragsurf.Movement {
                 input.frame = (_owner.NetworkTimeManager != null) ? (int)_owner.NetworkTimeManager.Tick : 0;
             }
 
+            bool hasCreatedInput = state.ContainsCreated();
             bool isRecoveredInput = false;
             if (!input.IsValid) {
                 if (hasLastTickedInput) {
@@ -55,8 +56,18 @@ namespace Fragsurf.Movement {
                     if (replicateTick > 0)
                         input.frame = replicateTick;
                     isRecoveredInput = true;
-                    LogReplayIntegrityError($"Missing canonical input for tick {input.frame}; using last known input as emergency recovery.");
+
+                    // Non-created states (future/predicted) are expected to borrow
+                    // from the most recent ticked input while waiting for real data.
+                    if (hasCreatedInput)
+                        LogReplayIntegrityError($"Missing canonical input for tick {input.frame}; using last known input as emergency recovery.");
                 } else {
+                    // Spectator proxies can legitimately have no created input yet
+                    // for future ticks. In that case simply wait for the first
+                    // authoritative input instead of raising an integrity error.
+                    if (!hasCreatedInput)
+                        return;
+
                     LogReplayIntegrityError("Missing canonical input and no previous authoritative input exists.");
                     return;
                 }
@@ -77,7 +88,8 @@ namespace Fragsurf.Movement {
             }
 
             _owner.SyncCurrentMoveLook(input.LookYaw, input.LookPitch);
-            StoreReplayInput(input, isRecoveredInput ? ReplayInputQualityRecovered : ReplayInputQualityCanonical);
+            byte replayInputQuality = DetermineReplayInputQuality(state, isRecoveredInput);
+            StoreReplayInput(input, replayInputQuality);
             rollback.SimulatePredictedTick(input, deltaTime);
             ApplySpectatorPresentation(input.frame);
         }
@@ -121,6 +133,9 @@ namespace Fragsurf.Movement {
                 SlideSpeedCurrent = (state != null) ? state.slideSpeedCurrent : 0f,
                 SlideDirection = (state != null) ? state.slideDirection : Vector3.zero,
                 SlideDelay = (state != null) ? state.slideDelay : 0f,
+                DashStartedThisFrame = BoolToByte(state != null && state.dashStartedThisFrame),
+                DoubleJumpedThisFrame = BoolToByte(state != null && state.doubleJumpedThisFrame),
+                MeleeHitThisFrame = BoolToByte(state != null && state.meleeHitThisFrame),
                 MeleeState = (byte)((state != null) ? (int)state.meleeState : (int)MoveData.MeleeState.None),
                 MeleeTimer = (state != null) ? state.meleeTimer : 0f,
                 MeleeCooldownTimer = (state != null) ? state.meleeCooldownTimer : 0f,
@@ -128,6 +143,11 @@ namespace Fragsurf.Movement {
                 MeleeHitResolved = BoolToByte(state != null && state.meleeHitResolved),
                 MeleeHitTargetObjectId = (state != null) ? state.meleeHitTargetObjectId : 0,
                 MeleeHitResolveTick = (state != null) ? state.meleeHitResolveTick : InputFrame.InvalidFrame,
+                IsParrying = BoolToByte(state != null && state.isParrying),
+                ParryTimer = (state != null) ? state.parryTimer : 0f,
+                ParryStartedThisFrame = BoolToByte(state != null && state.parryStartedThisFrame),
+                ParrySuccessThisFrame = BoolToByte(state != null && state.parrySuccessThisFrame),
+                LastConsumedParryPressFrame = (state != null) ? state.lastConsumedParryPressFrame : -1,
                 LastConsumedJumpPressFrame = (state != null) ? state.lastConsumedJumpPressFrame : -1,
                 LastConsumedDashPressFrame = (state != null) ? state.lastConsumedDashPressFrame : -1
             };
@@ -154,7 +174,10 @@ namespace Fragsurf.Movement {
                 };
                 _diagnostics.MissingPredictedStateCount++;
             } else {
-                report = _divergenceEvaluator.Evaluate(predictedState, authoritativeState, _consecutiveObserveCount);
+                report = _divergenceEvaluator.Evaluate(predictedState,
+                                                       authoritativeState,
+                                                       _consecutiveObserveCount,
+                                                       !_owner.DebugHasLocalAuthority);
             }
 
             UpdateDiagnostics(report, reconcileData.Frame);
@@ -208,6 +231,9 @@ namespace Fragsurf.Movement {
             state.slideSpeedCurrent = reconcileData.SlideSpeedCurrent;
             state.slideDirection = reconcileData.SlideDirection;
             state.slideDelay = reconcileData.SlideDelay;
+            state.dashStartedThisFrame = ByteToBool(reconcileData.DashStartedThisFrame);
+            state.doubleJumpedThisFrame = ByteToBool(reconcileData.DoubleJumpedThisFrame);
+            state.meleeHitThisFrame = ByteToBool(reconcileData.MeleeHitThisFrame);
             state.meleeState = (MoveData.MeleeState)Mathf.Clamp(reconcileData.MeleeState,
                                                                 (byte)MoveData.MeleeState.None,
                                                                 (byte)MoveData.MeleeState.Recovery);
@@ -217,6 +243,12 @@ namespace Fragsurf.Movement {
             state.meleeHitResolved = ByteToBool(reconcileData.MeleeHitResolved);
             state.meleeHitTargetObjectId = reconcileData.MeleeHitTargetObjectId;
             state.meleeHitResolveTick = reconcileData.MeleeHitResolveTick;
+            state.isParrying = ByteToBool(reconcileData.IsParrying);
+            state.wishParry = false;
+            state.parryTimer = reconcileData.ParryTimer;
+            state.parryStartedThisFrame = ByteToBool(reconcileData.ParryStartedThisFrame);
+            state.parrySuccessThisFrame = ByteToBool(reconcileData.ParrySuccessThisFrame);
+            state.lastConsumedParryPressFrame = reconcileData.LastConsumedParryPressFrame;
             state.lastConsumedJumpPressFrame = reconcileData.LastConsumedJumpPressFrame;
             state.lastConsumedDashPressFrame = reconcileData.LastConsumedDashPressFrame;
 
@@ -236,6 +268,15 @@ namespace Fragsurf.Movement {
 
         private static bool ByteToBool(byte value) {
             return value != 0;
+        }
+
+        private static byte DetermineReplayInputQuality(ReplicateState state, bool isRecoveredInput) {
+            if (isRecoveredInput)
+                return ReplayInputQualityRecovered;
+
+            return state.ContainsCreated()
+                ? ReplayInputQualityCanonical
+                : ReplayInputQualityRecovered;
         }
 
         private void StoreReplayInput(InputFrame input, byte quality) {
