@@ -456,10 +456,9 @@ MonoBehaviour:
   - sceneName: Map1
     tracks:
     - {fileID: 8300000, guid: a5a01598b9f48f445a709a1e6c391fab, type: 3}
-    - {fileID: 8300000, guid: 75d0225f2e521fd4a83dc5dfe655a8be, type: 3}
   - sceneName: Map2
     tracks:
-    - {fileID: 8300000, guid: 75d0225f2e521fd4a83dc5dfe655a8be, type: 3}
+    - {fileID: 8300000, guid: a5a01598b9f48f445a709a1e6c391fab, type: 3}
   dontDestroyOnLoad: 1
   playForCurrentSceneOnStart: 1
   stopWhenSceneHasNoPlaylist: 1
