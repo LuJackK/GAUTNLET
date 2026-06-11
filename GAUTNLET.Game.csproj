@@ -122,6 +122,7 @@
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\SurfCharacter.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacterPredictionData.cs" />
     <Compile Include="Assets\Scripts\Shared\Physics\Trace.cs" />
+    <Compile Include="Assets\Scripts\UI\InGameMenu.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupUpgradeKind.cs" />
     <Compile Include="Assets\Scripts\SoundEffectsManager.cs" />
     <Compile Include="Assets\Scripts\UI\SingleEventSystemGuard.cs" />

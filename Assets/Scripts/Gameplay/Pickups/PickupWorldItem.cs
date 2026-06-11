@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using FishNet;
 using FishNet.Managing.Client;
 using FishNet.Managing.Server;
@@ -26,6 +27,8 @@ namespace GAUNTLET.Gameplay.Pickups
         private bool _consumed;
         private NetworkObject _networkObject;
         private BoxCollider _triggerCollider;
+        private readonly List<RendererState> _rendererStates = new List<RendererState>();
+        private bool _cachedRendererStates;
 
         public event Action<PickupWorldItem> Consumed;
 
@@ -36,12 +39,15 @@ namespace GAUNTLET.Gameplay.Pickups
         {
             _networkObject = GetComponent<NetworkObject>();
             EnsureTriggerCollider();
+            CacheRendererStates();
             CacheBasePosition();
         }
 
         private void OnEnable()
         {
             _consumed = false;
+            RestoreRendererStates();
+            EnsureTriggerCollider();
             CacheBasePosition();
         }
 
@@ -69,6 +75,7 @@ namespace GAUNTLET.Gameplay.Pickups
             _consumed = false;
             _networkObject = GetComponent<NetworkObject>();
             EnsureTriggerCollider();
+            RestoreRendererStates();
             CacheBasePosition();
         }
 
@@ -165,6 +172,7 @@ namespace GAUNTLET.Gameplay.Pickups
             if (_triggerCollider == null)
                 _triggerCollider = gameObject.AddComponent<BoxCollider>();
 
+            _triggerCollider.enabled = true;
             ApplyTriggerColliderSettings(_triggerCollider);
         }
 
@@ -181,6 +189,59 @@ namespace GAUNTLET.Gameplay.Pickups
                 Mathf.Max(0.05f, triggerBoxSize.x),
                 Mathf.Max(0.05f, triggerBoxSize.y),
                 Mathf.Max(0.05f, triggerBoxSize.z));
+        }
+
+        private void CacheRendererStates()
+        {
+            if (_cachedRendererStates)
+                return;
+
+            _rendererStates.Clear();
+            Renderer[] renderers = GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Renderer itemRenderer = renderers[i];
+                if (itemRenderer == null)
+                    continue;
+
+                _rendererStates.Add(new RendererState(
+                    itemRenderer,
+                    itemRenderer.gameObject.activeSelf,
+                    itemRenderer.enabled));
+            }
+
+            _cachedRendererStates = true;
+        }
+
+        private void RestoreRendererStates()
+        {
+            CacheRendererStates();
+
+            for (int i = 0; i < _rendererStates.Count; i++)
+            {
+                RendererState state = _rendererStates[i];
+                if (state.Renderer == null)
+                    continue;
+
+                if (state.Renderer.gameObject.activeSelf != state.GameObjectActiveSelf)
+                    state.Renderer.gameObject.SetActive(state.GameObjectActiveSelf);
+
+                state.Renderer.enabled = state.RendererEnabled;
+            }
+        }
+
+        private readonly struct RendererState
+        {
+            public RendererState(Renderer renderer, bool gameObjectActiveSelf, bool rendererEnabled)
+            {
+                Renderer = renderer;
+                GameObjectActiveSelf = gameObjectActiveSelf;
+                RendererEnabled = rendererEnabled;
+            }
+
+            public Renderer Renderer { get; }
+            public bool GameObjectActiveSelf { get; }
+            public bool RendererEnabled { get; }
         }
     }
 }

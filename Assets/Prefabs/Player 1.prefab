@@ -9507,11 +9507,11 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Movement.PlayerVFXController
   surfCharacter: {fileID: 1208076651893476614}
   slideTrailRenderer: {fileID: 5820374054595068741}
-  trailOffset: {x: 0, y: 0, z: -1.5}
-  slideTrailLifetime: 0.22
-  slideTrailWidthMultiplier: 1.15
-  slideTrailStartAlpha: 0.2
-  slideTrailMidAlpha: 0.1
+  trailOffset: {x: 0, y: 0, z: 1.4}
+  slideTrailLifetime: 0.3
+  slideTrailWidthMultiplier: 0.77
+  slideTrailStartAlpha: 0.477
+  slideTrailMidAlpha: 0.053
   dashBurstPrefab: {fileID: 0}
   dashBurstCount: 20
   spawnDashLines: 1
@@ -9683,7 +9683,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584208503235854937
+  _initializedTimestamp: -8584204268876664052
   NetworkObserver: {fileID: 0}
   _enablePrediction: 1
   _predictionType: 0
@@ -9699,7 +9699,7 @@ MonoBehaviour:
   _spectatorInterpolation: 2
   _enableTeleport: 0
   _teleportThreshold: 1
-  <PrefabId>k__BackingField: 2
+  <PrefabId>k__BackingField: 3
   <SpawnableCollectionId>k__BackingField: 0
   <AssetPathHash>k__BackingField: 5342734844200817857
   SceneId: 0

@@ -1,6 +1,7 @@
 using UnityEngine;
 using FishNet.Object;
 using System;
+using GAUNTLET.UI;
 
 namespace Fragsurf.Movement {
 
@@ -92,6 +93,18 @@ namespace Fragsurf.Movement {
         }
 
         private void SampleBufferedState() {
+            if (InGameMenu.IsOpen) {
+                _bufferedState = default;
+                _pendingDirectionalState = default;
+                _pendingReleaseDirectionalState = default;
+                _pendingPressedButtons = 0;
+                _pendingJustPressed = 0;
+                _hasPendingDirectionalState = false;
+                _hasPendingReleaseDirectionalState = false;
+                _prevButtons = 0;
+                return;
+            }
+
             BufferedInputState state = default;
             state.Buttons = ReadCurrentButtons();
             state.StickX = ReadAxisByte("Horizontal");

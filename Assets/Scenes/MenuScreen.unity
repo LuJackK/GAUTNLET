@@ -456,9 +456,10 @@ MonoBehaviour:
   - sceneName: Map1
     tracks:
     - {fileID: 8300000, guid: a5a01598b9f48f445a709a1e6c391fab, type: 3}
+    - {fileID: 8300000, guid: 7e0b59a9e71994744b180ce9a7dcfdf8, type: 3}
   - sceneName: Map2
     tracks:
-    - {fileID: 8300000, guid: a5a01598b9f48f445a709a1e6c391fab, type: 3}
+    - {fileID: 8300000, guid: a47d88e1dbe75bb4d94bb721bd2347da, type: 3}
   dontDestroyOnLoad: 1
   playForCurrentSceneOnStart: 1
   stopWhenSceneHasNoPlaylist: 1
@@ -1061,8 +1062,8 @@ MonoBehaviour:
   m_fontMaterials: []
   m_fontColor32:
     serializedVersion: 2
-    rgba: 4278190080
-  m_fontColor: {r: 0, g: 0, b: 0, a: 1}
+    rgba: 4294967295
+  m_fontColor: {r: 1, g: 1, b: 1, a: 1}
   m_enableVertexGradient: 0
   m_colorMode: 3
   m_fontColorGradient:

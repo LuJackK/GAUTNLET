@@ -14,7 +14,7 @@ namespace GAUNTLET.Gameplay.Pickups
 
         [SerializeField] private GameObject defaultPickupPrefab;
         [SerializeField] private bool autoDiscoverLocations = true;
-        [SerializeField] private bool spawnImmediately = true;
+        [SerializeField] private bool spawnImmediately;
         [SerializeField] private bool allowPrimitiveFallback = true;
         [SerializeField] private List<PickupSpawnLocation> spawnLocations = new List<PickupSpawnLocation>();
 
@@ -22,6 +22,7 @@ namespace GAUNTLET.Gameplay.Pickups
 
         private readonly List<SpawnSlot> _slots = new List<SpawnSlot>();
         private bool _initialized;
+        private bool _serverWasStarted;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
         private static void RegisterSceneLoadHook()
@@ -61,6 +62,7 @@ namespace GAUNTLET.Gameplay.Pickups
                 return;
 
             InitializeSlots();
+            RescheduleInitialSpawnsOnServerStart();
             TickSlots();
         }
 
@@ -114,6 +116,7 @@ namespace GAUNTLET.Gameplay.Pickups
                 }
 
                 slot.ActivePickup = item;
+                slot.MarkSpawned();
                 slot.ScheduleNext(Time.time);
                 item.Consumed += Pickup_Consumed;
             }
@@ -137,7 +140,7 @@ namespace GAUNTLET.Gameplay.Pickups
 
             if (prefabIsNetworked)
             {
-                if (!TryGetStartedServerManager(out ServerManager serverManager))
+                if (!TryGetStartedServerManager(out ServerManager serverManager) || !CanSpawnNetworkedPickupNow(serverManager))
                 {
                     retrySoon = true;
                     return null;
@@ -214,6 +217,46 @@ namespace GAUNTLET.Gameplay.Pickups
             return !TryGetStartedClientManager(out _);
         }
 
+        private static bool CanSpawnNetworkedPickupNow(ServerManager serverManager)
+        {
+            if (serverManager == null)
+                return false;
+
+            foreach (var serverConnection in serverManager.Clients.Values)
+            {
+                if (serverConnection != null && serverConnection.IsValid && !serverConnection.LoadedStartScenes(true))
+                    return false;
+            }
+
+            ClientManager clientManager = InstanceFinder.ClientManager;
+            if (clientManager == null || !clientManager.Started)
+                return true;
+
+            var clientConnection = clientManager.Connection;
+            return clientConnection != null && clientConnection.IsValid && clientConnection.LoadedStartScenes(false);
+        }
+
+        private void RescheduleInitialSpawnsOnServerStart()
+        {
+            bool serverStarted = TryGetStartedServerManager(out _);
+            if (_serverWasStarted == serverStarted)
+                return;
+
+            _serverWasStarted = serverStarted;
+            if (!serverStarted)
+                return;
+
+            for (int i = 0; i < _slots.Count; i++)
+            {
+                SpawnSlot slot = _slots[i];
+                if (!slot.NeedsInitialSpawnDelay)
+                    continue;
+
+                float initialDelay = spawnImmediately ? 0f : slot.Location.InitialSpawnDelaySeconds;
+                slot.ScheduleInitial(Time.time, initialDelay);
+            }
+        }
+
         private static bool TryGetStartedServerManager(out ServerManager serverManager)
         {
             serverManager = InstanceFinder.ServerManager;
@@ -237,10 +280,22 @@ namespace GAUNTLET.Gameplay.Pickups
             public PickupSpawnLocation Location { get; }
             public PickupWorldItem ActivePickup { get; set; }
             public float NextSpawnTime { get; private set; }
+            public bool HasSpawned { get; private set; }
+            public bool NeedsInitialSpawnDelay => !HasSpawned && ActivePickup == null && Location != null;
 
             public bool CanSpawn(float now)
             {
                 return ActivePickup == null && Location != null && now >= NextSpawnTime;
+            }
+
+            public void MarkSpawned()
+            {
+                HasSpawned = true;
+            }
+
+            public void ScheduleInitial(float now, float initialDelaySeconds)
+            {
+                NextSpawnTime = now + Mathf.Max(0f, initialDelaySeconds);
             }
 
             public void ScheduleRetry(float now, float retryDelaySeconds)
