@@ -33,8 +33,6 @@ namespace GAUNTLET.UI
 
         private GameObject root;
         private Button resumeButton;
-        private CursorLockMode previousLockState;
-        private bool previousCursorVisible;
         private bool isOpen;
         private bool isReturningToMenu;
 
@@ -63,7 +61,8 @@ namespace GAUNTLET.UI
             DontDestroyOnLoad(gameObject);
             SceneManager.sceneLoaded += OnSceneLoaded;
             BuildMenu();
-            SetOpen(false, false);
+            SetOpen(false);
+            ApplyCursorForCurrentState();
         }
 
         private void OnDestroy()
@@ -74,7 +73,7 @@ namespace GAUNTLET.UI
             SceneManager.sceneLoaded -= OnSceneLoaded;
 
             if (isOpen)
-                RestoreGameplayState();
+                ApplyGameplayCursor();
         }
 
         private void Update()
@@ -83,12 +82,26 @@ namespace GAUNTLET.UI
                 return;
 
             if (Input.GetKeyDown(toggleKey) && CanOpenInCurrentScene())
-                SetOpen(!isOpen, true);
+                SetOpen(!isOpen);
+        }
+
+        private void LateUpdate()
+        {
+            // Cursor state is global and other components (or a focus change) can
+            // overwrite it after the menu opens. Keep UI scenes authoritative.
+            if (isOpen || IsMainMenuActive())
+                ApplyMenuCursor();
+        }
+
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (hasFocus)
+                ApplyCursorForCurrentState();
         }
 
         public void ResumeGame()
         {
-            SetOpen(false, true);
+            SetOpen(false);
         }
 
         public void ReturnToMainMenu()
@@ -104,14 +117,13 @@ namespace GAUNTLET.UI
 
         public void QuitGame()
         {
+            if (isReturningToMenu)
+                return;
+
+            isReturningToMenu = true;
             CloseForExit();
             StopNetworkConnections();
-
-#if UNITY_EDITOR
-            EditorApplication.isPlaying = false;
-#else
-            Application.Quit();
-#endif
+            StartCoroutine(QuitAfterShutdown());
         }
 
         private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
@@ -120,6 +132,8 @@ namespace GAUNTLET.UI
 
             if (scene.name == mainMenuSceneName)
                 CloseForExit();
+            else
+                ApplyCursorForCurrentState();
         }
 
         private bool CanOpenInCurrentScene()
@@ -130,7 +144,7 @@ namespace GAUNTLET.UI
                 && activeScene.name != mainMenuSceneName;
         }
 
-        private void SetOpen(bool open, bool rememberGameplayState)
+        private void SetOpen(bool open)
         {
             if (open == isOpen)
             {
@@ -147,29 +161,41 @@ namespace GAUNTLET.UI
 
             if (open)
             {
-                if (rememberGameplayState)
-                    CaptureGameplayState();
-
-                Cursor.lockState = CursorLockMode.None;
-                Cursor.visible = true;
+                ApplyMenuCursor();
                 SelectButton(resumeButton);
             }
             else
             {
-                RestoreGameplayState();
+                ApplyCursorForCurrentState();
             }
         }
 
-        private void CaptureGameplayState()
+        private void ApplyCursorForCurrentState()
         {
-            previousLockState = Cursor.lockState;
-            previousCursorVisible = Cursor.visible;
+            if (isOpen || IsMainMenuActive())
+                ApplyMenuCursor();
+            else
+                ApplyGameplayCursor();
         }
 
-        private void RestoreGameplayState()
+        private static void ApplyMenuCursor()
         {
-            Cursor.lockState = previousLockState;
-            Cursor.visible = previousCursorVisible;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
+        private static void ApplyGameplayCursor()
+        {
+            Cursor.lockState = CursorLockMode.Locked;
+            Cursor.visible = false;
+        }
+
+        private bool IsMainMenuActive()
+        {
+            Scene activeScene = SceneManager.GetActiveScene();
+            return activeScene.IsValid()
+                && activeScene.isLoaded
+                && activeScene.name == mainMenuSceneName;
         }
 
         private void CloseForExit()
@@ -179,8 +205,7 @@ namespace GAUNTLET.UI
             if (root != null)
                 root.SetActive(false);
 
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
+            ApplyMenuCursor();
         }
 
         private void StopNetworkConnections()
@@ -194,6 +219,17 @@ namespace GAUNTLET.UI
 
             if (networkManager.ServerManager.Started)
                 networkManager.ServerManager.StopConnection(true);
+        }
+
+        private System.Collections.IEnumerator QuitAfterShutdown()
+        {
+            yield return null;
+
+#if UNITY_EDITOR
+            EditorApplication.isPlaying = false;
+#else
+            Application.Quit();
+#endif
         }
 
         private void BuildMenu()

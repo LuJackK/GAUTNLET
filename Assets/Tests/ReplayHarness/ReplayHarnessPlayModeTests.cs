@@ -108,6 +108,42 @@ namespace Fragsurf.ReplayHarness {
                         $"Predicted timeline diverged before authoritative reconciliation. firstMismatchFrame={predicted.firstChecksumMismatchFrame}, lastMismatchFrame={predicted.lastChecksumMismatchFrame}, mismatchCount={predicted.checksumMismatchCount}.");
         }
 
+        [UnityTest]
+        public IEnumerator SlideHopAndMelee_ReplayThroughDelayedCorrections() {
+            ReplayTraceDefinition trace = new ReplayTraceDefinition {
+                traceId = "slide-hop-melee-cancel", excludeCrouch = false, enableSliding = true
+            };
+            byte previous = 0;
+            for (int frame = 0; frame < 160; frame++) {
+                byte buttons = 0;
+                if (frame == 0) buttons |= InputFrame.BTN_DASH;
+                if (frame >= 1 && frame < 65) buttons |= InputFrame.BTN_CROUCH;
+                if (frame == 6) buttons |= InputFrame.BTN_JUMP;
+                if (frame >= 70 && frame < 90) buttons |= InputFrame.BTN_MELEE;
+                if (frame >= 92 && frame < 100) buttons |= InputFrame.BTN_CROUCH;
+                trace.frames.Add(ReplayTraceFrame.FromInputFrame(InputFrame.Create(frame, 1, buttons,
+                    0, 127, (byte)(buttons & ~previous), 0f, 0f)));
+                previous = buttons;
+            }
+            ReplayComparisonSettings settings = new ReplayComparisonSettings { authoritativeDelayFrames = 8 };
+            ReplayHarnessEnvironment environment = ReplayHarnessEnvironment.Create(trace, Vector3.zero);
+            yield return WaitUntilReady(environment);
+            ReplayRunResult authoritative = ReplayHarnessRunner.RunLocalTrace(environment, trace, ReplayRunKind.AuthoritativeReference);
+            Assert.IsTrue(authoritative.records.Exists(r => r.sample.sliding), "Trace must exercise sliding.");
+            Assert.IsTrue(authoritative.records.Exists(r => r.sample.jumping && !r.sample.sliding), "Trace must leave the slide on jump.");
+            Assert.IsTrue(authoritative.records.Exists(r => r.sample.meleeState == MoveData.MeleeState.Lunging), "Trace must exercise melee lunge.");
+            environment.Dispose();
+            yield return null;
+            environment = ReplayHarnessEnvironment.Create(trace, Vector3.zero);
+            yield return WaitUntilReady(environment);
+            ReplayRunResult predicted = ReplayHarnessRunner.RunPredictedWithCorrections(environment, trace, authoritative, settings);
+            environment.Dispose();
+            yield return null;
+            ReplayComparisonReport report = ReplayComparisonReport.Compare(authoritative, predicted, settings, "Slide hop and melee rollback");
+            Assert.IsTrue(report.passed, report.summary);
+            Assert.Zero(predicted.checksumMismatchCount);
+        }
+
         private static IEnumerator WaitUntilReady(ReplayHarnessEnvironment environment) {
             int safetyFrames = 10;
             while (environment != null && !environment.IsReady && safetyFrames-- > 0)

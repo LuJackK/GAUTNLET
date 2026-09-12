@@ -138,10 +138,13 @@ namespace Fragsurf.Movement {
         [SerializeField] private SoundSet meleeCollideWithPlayerSounds = new SoundSet();
         [SerializeField] private SoundSet meleeChargingSounds = new SoundSet();
         [SerializeField] private SoundSet meleeLungingSounds = new SoundSet();
+        [SerializeField] private SoundSet meleeMinChargeReachedSounds = new SoundSet();
+        [SerializeField] private SoundSet meleeCooldownReadySounds = new SoundSet();
 
         [Header("Parry")]
         [SerializeField] private SoundSet parryingSounds = new SoundSet();
         [SerializeField] private SoundSet successfulParrySounds = new SoundSet();
+        [SerializeField] private SoundSet parryCooldownReadySounds = new SoundSet();
 
         [Header("Movement")]
         [SerializeField] private SoundSet dashSounds = new SoundSet();
@@ -202,11 +205,20 @@ namespace Fragsurf.Movement {
             if (state.meleeHitThisFrame)
                 meleeCollideWithPlayerSounds.Play(this);
 
+            if (state.meleeMinChargeReachedThisFrame)
+                meleeMinChargeReachedSounds.Play(this);
+
+            if (state.meleeCooldownReadyThisFrame)
+                meleeCooldownReadySounds.Play(this);
+
             if (state.parryStartedThisFrame)
                 parryingSounds.Play(this);
 
-            if (state.parrySuccessThisFrame)
+            if (state.gotParriedThisFrame)
                 successfulParrySounds.Play(this);
+
+            if (state.parryCooldownReadyThisFrame)
+                parryCooldownReadySounds.Play(this);
 
             if (state.dashStartedThisFrame)
                 dashSounds.Play(this);

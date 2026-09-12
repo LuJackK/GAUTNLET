@@ -7,6 +7,15 @@ namespace Fragsurf.ReplayHarness {
     public class StateDivergenceEvaluatorTests {
 
         [Test]
+        public void Evaluate_ForceCorrects_ColliderStanceMismatch() {
+            StateDivergenceEvaluator evaluator = new StateDivergenceEvaluator(CorrectionGateConfig.CreateConservativeDefaults());
+            MoveData predicted = CreateBaseline();
+            MoveData authoritative = CreateBaseline();
+            authoritative.crouching = true;
+            Assert.AreEqual(CorrectionDecision.ForceCorrect, evaluator.Evaluate(predicted, authoritative, 0).Decision);
+        }
+
+        [Test]
         public void Evaluate_ForceCorrects_OnGameplayCriticalMismatch() {
             StateDivergenceEvaluator evaluator = new StateDivergenceEvaluator(CorrectionGateConfig.CreateConservativeDefaults());
             MoveData predicted = CreateBaseline();
@@ -92,6 +101,35 @@ namespace Fragsurf.ReplayHarness {
 
             Assert.AreEqual(CorrectionDecision.HardCorrect, report.Decision);
             StringAssert.Contains("horizontal position", report.PrimaryReason);
+        }
+
+        [Test]
+        public void Evaluate_IgnoresSlideLifecycleDrift_DuringActiveMelee() {
+            StateDivergenceEvaluator evaluator = new StateDivergenceEvaluator(CorrectionGateConfig.CreateConservativeDefaults());
+            MoveData predicted = CreateCharging();
+            MoveData authoritative = CreateCharging();
+            authoritative.sliding = true;
+            authoritative.wasSliding = true;
+            authoritative.slideSpeedCurrent = 13f;
+            authoritative.slideDirection = Vector3.right;
+            authoritative.slideDelay = 0.5f;
+
+            StateDivergenceReport report = evaluator.Evaluate(predicted, authoritative, 0);
+
+            Assert.AreEqual(CorrectionDecision.Ignore, report.Decision);
+        }
+
+        [Test]
+        public void Evaluate_StillForceCorrects_SlidingMismatch_OutsideActiveMelee() {
+            StateDivergenceEvaluator evaluator = new StateDivergenceEvaluator(CorrectionGateConfig.CreateConservativeDefaults());
+            MoveData predicted = CreateBaseline();
+            MoveData authoritative = CreateBaseline();
+            authoritative.sliding = true;
+
+            StateDivergenceReport report = evaluator.Evaluate(predicted, authoritative, 0);
+
+            Assert.AreEqual(CorrectionDecision.ForceCorrect, report.Decision);
+            StringAssert.Contains("sliding", report.PrimaryReason);
         }
 
         private static MoveData CreateBaseline() {

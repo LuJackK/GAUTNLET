@@ -42,13 +42,16 @@ namespace Fragsurf.Movement {
             CompareForceField(report, predicted.isDashing != authoritative.isDashing, "isDashing", predicted.isDashing, authoritative.isDashing);
             CompareForceField(report, predicted.canAirDash != authoritative.canAirDash, "canAirDash", predicted.canAirDash, authoritative.canAirDash);
             CompareForceField(report, predicted.jumpCount != authoritative.jumpCount, "jumpCount", predicted.jumpCount, authoritative.jumpCount);
+            // Stance changes the collision shape, so it cannot remain a soft visual difference.
+            CompareForceField(report, predicted.crouching != authoritative.crouching, "crouching", predicted.crouching, authoritative.crouching);
 
             // Skip grounded force-correct during active melee (Charging/Lunging) to prevent aggressive floor-snap
             bool shouldCheckGrounded = !IsActiveMelee(predicted) && !IsActiveMelee(authoritative);
+            bool shouldCheckSlideState = !IsActiveMelee(predicted) && !IsActiveMelee(authoritative);
             CompareForceField(report, shouldCheckGrounded && predicted.grounded != authoritative.grounded, "grounded", predicted.grounded, authoritative.grounded);
             CompareForceField(report, predicted.jumping != authoritative.jumping, "jumping", predicted.jumping, authoritative.jumping);
-            CompareForceField(report, predicted.sliding != authoritative.sliding, "sliding", predicted.sliding, authoritative.sliding);
-            CompareForceField(report, predicted.wasSliding != authoritative.wasSliding, "wasSliding", predicted.wasSliding, authoritative.wasSliding);
+            CompareForceField(report, shouldCheckSlideState && predicted.sliding != authoritative.sliding, "sliding", predicted.sliding, authoritative.sliding);
+            CompareForceField(report, shouldCheckSlideState && predicted.wasSliding != authoritative.wasSliding, "wasSliding", predicted.wasSliding, authoritative.wasSliding);
             CompareForceField(report, predicted.hasHitTarget != authoritative.hasHitTarget, "hasHitTarget", predicted.hasHitTarget, authoritative.hasHitTarget);
             CompareForceField(report, predicted.meleeHitResolved != authoritative.meleeHitResolved, "meleeHitResolved", predicted.meleeHitResolved, authoritative.meleeHitResolved);
             CompareForceField(report, predicted.meleeHitTargetObjectId != authoritative.meleeHitTargetObjectId, "meleeHitTargetObjectId", predicted.meleeHitTargetObjectId, authoritative.meleeHitTargetObjectId);
@@ -99,8 +102,10 @@ namespace Fragsurf.Movement {
                 ? _config.ForeignMeleeChargeFallingVelocityHardThreshold
                 : _config.FallingVelocityHardThreshold;
             CompareHardDistance(report, Mathf.Abs(predicted.fallingVelocity - authoritative.fallingVelocity), fallingVelocityThreshold, "fallingVelocity", string.Empty);
-            CompareHardDistance(report, Vector3.Angle(NormalizeOrZero(predicted.slideDirection), NormalizeOrZero(authoritative.slideDirection)), _config.SlideDirectionHardThreshold, "slideDirection", "deg");
-            CompareHardDistance(report, Mathf.Abs(predicted.slideSpeedCurrent - authoritative.slideSpeedCurrent), _config.SlideSpeedHardThreshold, "slideSpeedCurrent", string.Empty);
+            if (shouldCheckSlideState) {
+                CompareHardDistance(report, Vector3.Angle(NormalizeOrZero(predicted.slideDirection), NormalizeOrZero(authoritative.slideDirection)), _config.SlideDirectionHardThreshold, "slideDirection", "deg");
+                CompareHardDistance(report, Mathf.Abs(predicted.slideSpeedCurrent - authoritative.slideSpeedCurrent), _config.SlideSpeedHardThreshold, "slideSpeedCurrent", string.Empty);
+            }
 
             if (report.HasKinematicMismatch)
                 return FinalizeReport(report);
@@ -118,13 +123,16 @@ namespace Fragsurf.Movement {
             AddWeightedFloat(report, Mathf.Abs(predicted.crouchLerp - authoritative.crouchLerp), _config.LerpTolerance, _config.CrouchLerpWeight, "crouchLerp");
             AddWeightedFloat(report, Mathf.Abs(predicted.renderCrouchLerp - authoritative.renderCrouchLerp), _config.LerpTolerance, _config.CrouchLerpWeight, "renderCrouchLerp");
             AddWeightedBool(report, predicted.uncrouchDown != authoritative.uncrouchDown, _config.CrouchStateWeight, "uncrouchDown", predicted.uncrouchDown, authoritative.uncrouchDown);
-            AddWeightedFloat(report, Mathf.Abs(predicted.slideDelay - authoritative.slideDelay), _config.TimerTolerance, _config.TimerWeight, "slideDelay");
+            if (shouldCheckSlideState)
+                AddWeightedFloat(report, Mathf.Abs(predicted.slideDelay - authoritative.slideDelay), _config.TimerTolerance, _config.TimerWeight, "slideDelay");
             float meleeTimerTolerance = relaxMeleeCharge
                 ? _config.ForeignMeleeChargeTimerTolerance
                 : _config.TimerTolerance;
             AddWeightedFloat(report, Mathf.Abs(predicted.meleeTimer - authoritative.meleeTimer), meleeTimerTolerance, _config.TimerWeight, "meleeTimer");
             AddWeightedFloat(report, Mathf.Abs(predicted.meleeCooldownTimer - authoritative.meleeCooldownTimer), _config.TimerTolerance, _config.TimerWeight, "meleeCooldownTimer");
+            AddWeightedFloat(report, Mathf.Abs(predicted.meleeHoldTimer - authoritative.meleeHoldTimer), _config.TimerTolerance, _config.TimerWeight, "meleeHoldTimer");
             AddWeightedFloat(report, Mathf.Abs(predicted.parryTimer - authoritative.parryTimer), _config.TimerTolerance, _config.TimerWeight, "parryTimer");
+            AddWeightedFloat(report, Mathf.Abs(predicted.parryCooldownTimer - authoritative.parryCooldownTimer), _config.TimerTolerance, _config.TimerWeight, "parryCooldownTimer");
 
             AddDiagnosticFloat(report, Mathf.Abs(predicted.forwardMove - authoritative.forwardMove), _config.InputEchoTolerance, _config.InputEchoWeight, "forwardMove");
             AddDiagnosticFloat(report, Mathf.Abs(predicted.sideMove - authoritative.sideMove), _config.InputEchoTolerance, _config.InputEchoWeight, "sideMove");

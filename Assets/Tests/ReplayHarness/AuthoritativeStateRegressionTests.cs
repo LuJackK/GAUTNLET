@@ -8,12 +8,35 @@ using UnityEngine.TestTools;
 namespace Fragsurf.ReplayHarness {
 
     public class AuthoritativeStateRegressionTests {
+        private GameObject _networkManager;
+
+        [SetUp]
+        public void SetUpNetworkRuntime() {
+            _networkManager = new GameObject("RegressionNetworkManager");
+            _networkManager.SetActive(false);
+            // FishNet's editor OnValidate runs during AddComponent, before a runtime
+            // fixture can assign its prefab collection. Awake runs after assignment.
+            LogAssert.Expect(LogType.Error, new System.Text.RegularExpressions.Regex("^SpawnablePrefabs is null on RegressionNetworkManager\\."));
+            var manager = _networkManager.AddComponent<FishNet.Managing.NetworkManager>();
+            manager.SpawnablePrefabs = ScriptableObject.CreateInstance<FishNet.Managing.Object.SinglePrefabObjects>();
+            _networkManager.SetActive(true);
+        }
+
+        [TearDown]
+        public void TearDownNetworkRuntime() {
+            if (_networkManager != null) {
+                var prefabs = _networkManager.GetComponent<FishNet.Managing.NetworkManager>().SpawnablePrefabs;
+                Object.DestroyImmediate(_networkManager);
+                Object.DestroyImmediate(prefabs);
+            }
+        }
         private const BindingFlags NonPublicInstance = BindingFlags.Instance | BindingFlags.NonPublic;
         private const BindingFlags PublicInstance = BindingFlags.Instance | BindingFlags.Public;
 
         [Test]
         public void BuildAndApplyReconcile_PreservesReplayCriticalMoveState() {
             GameObject root = new GameObject("AuthoritativeStateRoundTrip");
+            root.SetActive(false);
             try {
                 GameObject body = new GameObject("Body");
                 body.transform.SetParent(root.transform, worldPositionStays: false);
@@ -31,7 +54,11 @@ namespace Fragsurf.ReplayHarness {
                 character.viewTransform = view.transform;
                 character.playerRotationTransform = body.transform;
                 RollbackManager rollback = root.AddComponent<RollbackManager>();
+                root.AddComponent<FishNet.Object.NetworkObject>();
                 NetworkedCharacter networkedCharacter = root.AddComponent<NetworkedCharacter>();
+
+                FishNet.Managing.Object.ManagedObjects.InitializePrefab(root.GetComponent<FishNet.Object.NetworkObject>(), 0);
+                root.SetActive(true);
 
                 rollback.Initialize(character);
 
@@ -73,12 +100,14 @@ namespace Fragsurf.ReplayHarness {
                     meleeState = MoveData.MeleeState.Lunging,
                     meleeTimer = 0.15f,
                     meleeCooldownTimer = 0.8f,
+                    meleeHoldTimer = 0.55f,
                     hasHitTarget = true,
                     meleeHitResolved = true,
                     meleeHitTargetObjectId = 1337,
                     meleeHitResolveTick = 40,
                     isParrying = true,
                     parryTimer = 0.25f,
+                    parryCooldownTimer = 1.1f,
                     parryStartedThisFrame = true,
                     parrySuccessThisFrame = true,
                     lastConsumedJumpPressFrame = 37,
@@ -114,6 +143,7 @@ namespace Fragsurf.ReplayHarness {
         [Test]
         public void ApplySpectatorPresentationYawFromCurrentState_RotatesBodyWithoutDrivingPitch() {
             GameObject root = new GameObject("SpectatorYawPresentation");
+            root.SetActive(false);
             try {
                 GameObject body = new GameObject("Body");
                 body.transform.SetParent(root.transform, worldPositionStays: false);
@@ -132,7 +162,11 @@ namespace Fragsurf.ReplayHarness {
                 character.viewTransform = view.transform;
                 character.playerRotationTransform = body.transform;
                 root.AddComponent<RollbackManager>();
+                root.AddComponent<FishNet.Object.NetworkObject>();
                 NetworkedCharacter networkedCharacter = root.AddComponent<NetworkedCharacter>();
+
+                FishNet.Managing.Object.ManagedObjects.InitializePrefab(root.GetComponent<FishNet.Object.NetworkObject>(), 0);
+                root.SetActive(true);
 
                 character.moveData = new MoveData {
                     frame = 9,
@@ -188,6 +222,52 @@ namespace Fragsurf.ReplayHarness {
                 environment?.Dispose();
             }
 
+            yield return null;
+        }
+
+        [UnityTest]
+        public IEnumerator MeleeReplay_DoesNotResolveAgainstLiveTargetsOrRepeatDamage() {
+            ReplayHarnessEnvironment environment = ReplayHarnessEnvironment.Create(new ReplayTraceDefinition(), Vector3.zero);
+            try {
+                yield return WaitUntilReady(environment);
+                environment.PrepareForRun();
+                SurfCharacter character = environment.character;
+                GameObject hitboxObject = new GameObject("ReplayMeleeHitbox");
+                hitboxObject.transform.SetParent(character.transform, false);
+                var hitbox = hitboxObject.AddComponent<Fragsurf.Combat.Hitbox>();
+                hitbox.definition = new HitboxDefinition { shape = ShapeType.Sphere, radius = 3f };
+                hitbox.targetLayer = 1;
+                character.meleeHitbox = hitbox;
+
+                GameObject target = new GameObject("LiveTarget");
+                target.transform.SetParent(environment.arenaRoot.transform);
+                target.transform.position = character.moveData.origin + Vector3.forward;
+                target.AddComponent<BoxCollider>().isTrigger = true;
+                var hurtbox = target.AddComponent<Fragsurf.Combat.Hurtbox>();
+                int damageEvents = 0;
+                hurtbox.OnTakeHit += _ => damageEvents++;
+                Physics.SyncTransforms();
+
+                MoveData initial = character.moveData.Clone();
+                initial.moveType = MoveType.HeavyMelee;
+                initial.meleeState = MoveData.MeleeState.Lunging;
+                initial.velocity = Vector3.forward * 15f;
+                Assert.AreSame(hurtbox, hitbox.CheckHit(initial.origin, initial));
+                InputFrame input = InputFrame.Create(10, 1, 0, 0, 0, 0, 0f, 0f);
+                MoveData replayed = character.SimulationTick(initial.Clone(), input, 1f / 60f, false);
+                Assert.AreSame(replayed, character.moveData, "Simulation must mutate the supplied snapshot.");
+                Assert.IsFalse(replayed.hasHitTarget);
+                Assert.Greater(replayed.velocity.z, 0f);
+                Assert.Zero(damageEvents);
+
+                MoveData authoritative = character.SimulationTick(initial.Clone(), input, 1f / 60f, true);
+                Assert.IsTrue(authoritative.meleeHitResolved);
+                Assert.AreEqual(1, damageEvents);
+                character.SimulationTick(authoritative.Clone(), InputFrame.Create(11, 1, 0, 0, 0, 0, 0f, 0f), 1f / 60f, false);
+                Assert.AreEqual(1, damageEvents);
+            } finally {
+                environment.Dispose();
+            }
             yield return null;
         }
 
@@ -251,12 +331,14 @@ namespace Fragsurf.ReplayHarness {
             Assert.AreEqual(expected.meleeState, actual.meleeState);
             Assert.AreEqual(expected.meleeTimer, actual.meleeTimer);
             Assert.AreEqual(expected.meleeCooldownTimer, actual.meleeCooldownTimer);
+            Assert.AreEqual(expected.meleeHoldTimer, actual.meleeHoldTimer);
             Assert.AreEqual(expected.hasHitTarget, actual.hasHitTarget);
             Assert.AreEqual(expected.meleeHitResolved, actual.meleeHitResolved);
             Assert.AreEqual(expected.meleeHitTargetObjectId, actual.meleeHitTargetObjectId);
             Assert.AreEqual(expected.meleeHitResolveTick, actual.meleeHitResolveTick);
             Assert.AreEqual(expected.isParrying, actual.isParrying);
             Assert.AreEqual(expected.parryTimer, actual.parryTimer);
+            Assert.AreEqual(expected.parryCooldownTimer, actual.parryCooldownTimer);
             Assert.AreEqual(expected.parryStartedThisFrame, actual.parryStartedThisFrame);
             Assert.AreEqual(expected.parrySuccessThisFrame, actual.parrySuccessThisFrame);
             Assert.AreEqual(expected.lastConsumedJumpPressFrame, actual.lastConsumedJumpPressFrame);

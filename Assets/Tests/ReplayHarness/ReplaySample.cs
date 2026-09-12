@@ -27,6 +27,7 @@ namespace Fragsurf.ReplayHarness {
         public bool meleeHitResolved;
         public bool isParrying;
         public float parryTimer;
+        public float parryCooldownTimer;
         public int jumpCount;
         public int lastConsumedJumpPressFrame;
         public int lastConsumedDashPressFrame;
@@ -51,6 +52,7 @@ namespace Fragsurf.ReplayHarness {
         public MoveData.MeleeState meleeState;
         public float meleeTimer;
         public float meleeCooldownTimer;
+        public float meleeHoldTimer;
         public float crouchLerp;
         public float renderCrouchLerp;
         public float slideSpeedCurrent;
@@ -81,6 +83,7 @@ namespace Fragsurf.ReplayHarness {
                 meleeHitResolved = state != null && state.meleeHitResolved,
                 isParrying = state != null && state.isParrying,
                 parryTimer = (state != null) ? state.parryTimer : 0f,
+                parryCooldownTimer = (state != null) ? state.parryCooldownTimer : 0f,
                 jumpCount = (state != null) ? state.jumpCount : 0,
                 lastConsumedJumpPressFrame = (state != null) ? state.lastConsumedJumpPressFrame : -1,
                 lastConsumedDashPressFrame = (state != null) ? state.lastConsumedDashPressFrame : -1,
@@ -105,6 +108,7 @@ namespace Fragsurf.ReplayHarness {
                 meleeState = (state != null) ? state.meleeState : MoveData.MeleeState.None,
                 meleeTimer = (state != null) ? state.meleeTimer : 0f,
                 meleeCooldownTimer = (state != null) ? state.meleeCooldownTimer : 0f,
+                meleeHoldTimer = (state != null) ? state.meleeHoldTimer : 0f,
                 crouchLerp = (state != null) ? state.crouchLerp : 0f,
                 renderCrouchLerp = (state != null) ? state.renderCrouchLerp : 0f,
                 slideSpeedCurrent = (state != null) ? state.slideSpeedCurrent : 0f,
@@ -144,6 +148,7 @@ namespace Fragsurf.ReplayHarness {
                 HashInt(ref hash, BoolToInt(state.meleeHitResolved));
                 HashInt(ref hash, BoolToInt(state.isParrying));
                 HashInt(ref hash, Quantize(state.parryTimer));
+                HashInt(ref hash, Quantize(state.parryCooldownTimer));
                 HashInt(ref hash, state.jumpCount);
                 HashInt(ref hash, state.lastConsumedJumpPressFrame);
                 HashInt(ref hash, state.lastConsumedDashPressFrame);
@@ -166,6 +171,7 @@ namespace Fragsurf.ReplayHarness {
                 HashInt(ref hash, Quantize(state.fallingVelocity));
                 HashInt(ref hash, Quantize(state.meleeTimer));
                 HashInt(ref hash, Quantize(state.meleeCooldownTimer));
+                HashInt(ref hash, Quantize(state.meleeHoldTimer));
                 HashInt(ref hash, Quantize(state.crouchLerp));
                 HashInt(ref hash, Quantize(state.renderCrouchLerp));
                 HashInt(ref hash, Quantize(state.slideSpeedCurrent));

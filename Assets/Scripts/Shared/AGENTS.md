@@ -1,5 +1,12 @@
 # Shared Scripts Orientation
 
+## Current trace contract (September 2026 overhaul)
+
+Tracer now computes axis-aligned world geometry from BoxCollider.size/center and transform scale; it does not use cached collider.bounds. Vertical capsule traces use the full segment from SurfPhysics.GetCapsulePoints. Both shapes use a 0.01 m query inset and return travel distances corrected for that inset. The old capsule half-metre endpoint adjustment and normal-refinement raycasts are removed. Queries ignore triggers.
+
+The detailed legacy implementation notes below are superseded by this contract. See MOVEMENT_OVERHAUL.md at the project root.
+
+
 This folder contains small cross-cutting helpers used by gameplay code elsewhere in the project. It is not a feature area by itself; treat it as shared utility surface and keep changes narrow.
 
 ## Contents

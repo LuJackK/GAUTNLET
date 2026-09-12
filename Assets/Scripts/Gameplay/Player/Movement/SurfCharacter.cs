@@ -23,7 +23,7 @@ namespace Fragsurf.Movement {
 
         [Header("Physics Settings")]
         public Vector3 colliderSize = new Vector3 (1f, 2f, 1f);
-        [HideInInspector] public ColliderType collisionType { get { return ColliderType.Box; } } // Capsule doesn't work anymore; I'll have to figure out why some other time, sorry.
+        [HideInInspector] public ColliderType collisionType { get { return ColliderType.Box; } } // Keep existing prefab collider choice stable.
         public float weight = 75f;
         public float rigidbodyPushForce = 2f;
         public bool solidCollider = false;
@@ -41,8 +41,8 @@ namespace Fragsurf.Movement {
         [Header ("Features")]
         public bool crouchingEnabled = true;
         public bool slidingEnabled = false;
-        public bool laddersEnabled = true;
-        public bool supportAngledLadders = true;
+        [HideInInspector] public bool laddersEnabled = false;
+        [HideInInspector] public bool supportAngledLadders = false;
 
         [Header ("Step offset (can be buggy, enable at your own risk)")]
         public bool useStepOffset = false;
@@ -61,7 +61,7 @@ namespace Fragsurf.Movement {
         
         [Header ("Movement Config")]
         [SerializeField]
-        public MovementConfig movementConfig;
+        public MovementConfig movementConfig = new MovementConfig();
 
         [Header("Combat")]
         public Hitbox meleeHitbox;
@@ -77,18 +77,12 @@ namespace Fragsurf.Movement {
         private Vector3 _initialRenderMeshLocalPos;
         private Vector3 _initialPlayerHitboxLocalPos;
         private GameObject _colliderObject;
-        private GameObject _cameraWaterCheckObject;
-        private CameraWaterCheck _cameraWaterCheck;
 
         private MoveData _moveData = new MoveData ();
         private SurfController _controller = new SurfController ();
 
         private Rigidbody rb;
 
-        private List<Collider> triggers = new List<Collider> ();
-        private int numberOfTriggers = 0;
-
-        private bool underwater = false;
         private const int DIAGNOSTIC_BUFFER_SIZE = 256;
         private readonly string[] _simulationDiagnosticBuffer = new string[DIAGNOSTIC_BUFFER_SIZE];
         private readonly int[] _simulationDiagnosticFrameAtSlot = new int[DIAGNOSTIC_BUFFER_SIZE];
@@ -176,23 +170,6 @@ namespace Fragsurf.Movement {
                 _colliderObject.transform.SetSiblingIndex (0);
             }
 
-            if (_cameraWaterCheckObject == null && viewTransform != null) {
-                _cameraWaterCheckObject = new GameObject ("Camera water check");
-                _cameraWaterCheckObject.layer = gameObject.layer;
-                _cameraWaterCheckObject.transform.position = viewTransform.position;
-
-                SphereCollider _cameraWaterCheckSphere = _cameraWaterCheckObject.AddComponent<SphereCollider> ();
-                _cameraWaterCheckSphere.radius = 0.1f;
-                _cameraWaterCheckSphere.isTrigger = true;
-
-                Rigidbody _cameraWaterCheckRb = _cameraWaterCheckObject.AddComponent<Rigidbody> ();
-                _cameraWaterCheckRb.useGravity = false;
-                _cameraWaterCheckRb.isKinematic = true;
-
-                _cameraWaterCheck = _cameraWaterCheckObject.AddComponent<CameraWaterCheck> ();
-            } else if (_cameraWaterCheckObject != null && _cameraWaterCheck == null) {
-                _cameraWaterCheck = _cameraWaterCheckObject.GetComponent<CameraWaterCheck>();
-            }
 
             if (characterRenderer == null)
                 characterRenderer = GetComponent<CharacterRenderer>();
@@ -365,8 +342,6 @@ namespace Fragsurf.Movement {
             get {
                 RefreshRuntimeComponentReferences();
                 return _colliderObject != null &&
-                       _cameraWaterCheckObject != null &&
-                       _cameraWaterCheck != null &&
                        _collider != null &&
                        movementConfig != null &&
                        viewTransform != null;
@@ -398,6 +373,9 @@ namespace Fragsurf.Movement {
             _loggedSimulationNotReady = false;
             
             state.frame = input.frame;
+            // A rollback caller may supply a clone rather than the live state.
+            _moveData = state;
+            SyncColliderShapeFromMoveData();
             _prevState = state.Clone();
             _prevState.renderCrouchLerp = _prevState.crouchLerp;
             _currentMovementQueryDiagnostics = string.Empty;
@@ -407,43 +385,22 @@ namespace Fragsurf.Movement {
             state.dashStartedThisFrame = false;
             state.doubleJumpedThisFrame = false;
             state.meleeHitThisFrame = false;
+            state.meleeMinChargeReachedThisFrame = false;
+            state.meleeCooldownReadyThisFrame = false;
             state.parryStartedThisFrame = false;
             state.parrySuccessThisFrame = false;
+            state.gotParriedThisFrame = false;
+            state.parryCooldownReadyThisFrame = false;
 
             _colliderObject.transform.rotation = Quaternion.identity;
 
+            TickParryTimers(ref state, deltaTime);
             ApplyInputToState(ref state, input);
-            UpdateParryState(ref state, deltaTime);
+            UpdateParryState(ref state);
             UpdateMeleeState(ref state, deltaTime);
             
-            // Previous movement code (Removed to fix double-movement bug in networked mode)
-            // Vector3 positionalMovement = transform.position - prevPosition;
-            // transform.position = prevPosition;
-            // state.origin += positionalMovement;
-
-            // Triggers
-            int removedTriggerCount = triggers.RemoveAll(item => item == null);
-            if (removedTriggerCount > 0)
-                numberOfTriggers = -1;
-
-            if (numberOfTriggers != triggers.Count) {
-                numberOfTriggers = triggers.Count;
-
-                underwater = false;
-                foreach (Collider trigger in triggers) {
-
-                    if (trigger == null)
-                        continue;
-
-                    if (trigger.GetComponentInParent<Water> ())
-                        underwater = true;
-
-                }
-
-            }
-
-            state.cameraUnderwater = _moveData.cameraUnderwater;
-            state.underwater = underwater;
+            // Water and ladders are retired; trigger/render state cannot affect replay.
+            state.underwater = state.cameraUnderwater = state.climbingLadder = false;
 
             if (ShouldIgnoreCrouchForForeignSimulation()) {
                 StripCrouchState(ref state);
@@ -464,6 +421,13 @@ namespace Fragsurf.Movement {
         }
 
         private void ProcessHitboxes(ref MoveData state, bool allowGameplaySideEffects) {
+            // Remote targets have no historical collider state in this replay path.
+            // Only a fresh authoritative tick may resolve a hit; clients receive its
+            // movement outcome through the existing reconciled hit fields.
+            if (!allowGameplaySideEffects || !ShouldApplyAuthoritativeMeleeSideEffects()) {
+                _currentMeleeQueryDiagnostics = "melee query: awaiting authoritative hit state";
+                return;
+            }
             if (meleeHitbox == null) {
                 _currentMeleeQueryDiagnostics = "melee query: unavailable (no hitbox)";
                 return;
@@ -568,8 +532,6 @@ namespace Fragsurf.Movement {
         public void LoadState(MoveData savedState) {
             _moveData = savedState.Clone();
             _prevState = savedState.Clone(); // Synchronize previous state to prevent jumps after load
-            _moveData.renderCrouchLerp = _moveData.crouchLerp;
-            _prevState.renderCrouchLerp = _prevState.crouchLerp;
             // Snap transform immediately — renderer will interpolate next Update()
             SyncRuntimeStateFromMoveData();
             if (rb != null) {
@@ -598,8 +560,6 @@ namespace Fragsurf.Movement {
             if (_colliderObject != null && _collider == null)
                 _collider = _colliderObject.GetComponent<Collider>();
 
-            if (_cameraWaterCheckObject != null && _cameraWaterCheck == null)
-                _cameraWaterCheck = _cameraWaterCheckObject.GetComponent<CameraWaterCheck>();
         }
 
         private void SyncColliderShapeFromMoveData() {
@@ -773,7 +733,6 @@ namespace Fragsurf.Movement {
                 }
             }
 
-            RefreshCameraWaterCheck();
             
             _colliderObject.transform.rotation = Quaternion.identity;
         }
@@ -839,13 +798,6 @@ namespace Fragsurf.Movement {
             return 1f / 60f;
         }
 
-        private void RefreshCameraWaterCheck() {
-            if (_cameraWaterCheckObject == null || _cameraWaterCheck == null || viewTransform == null)
-                return;
-
-            _cameraWaterCheckObject.transform.position = viewTransform.position;
-            _moveData.cameraUnderwater = _cameraWaterCheck.IsUnderwater();
-        }
 
         internal void SetMovementQueryDiagnostics(string summary) {
             _currentMovementQueryDiagnostics = summary ?? string.Empty;
@@ -916,13 +868,15 @@ namespace Fragsurf.Movement {
 
             state.wishMelee      = input.HasButton(InputFrame.BTN_MELEE);
             bool parryPressedEdge = input.IsJustPressed(InputFrame.BTN_BLOCK);
-            state.wishParry      = parryPressedEdge && state.lastConsumedParryPressFrame != input.frame;
+            state.wishParry      = parryPressedEdge &&
+                                   state.lastConsumedParryPressFrame != input.frame &&
+                                   state.parryCooldownTimer <= 0f;
             state.parryStartedThisFrame = state.wishParry;
             if (state.parryStartedThisFrame)
                 state.lastConsumedParryPressFrame = input.frame;
             bool crouchHeld = input.HasButton(InputFrame.BTN_CROUCH);
             state.slideRequested = crouchHeld;
-            state.crouching      = ShouldIgnoreCrouchForForeignSimulation() ? false : crouchHeld;
+            // crouching is the actual collider stance; Crouch resolves the request.
             
             bool moveLeft = state.horizontalAxis < 0f;
             bool moveRight = state.horizontalAxis > 0f;
@@ -947,13 +901,24 @@ namespace Fragsurf.Movement {
 
         }
 
-        private void UpdateParryState(ref MoveData state, float deltaTime) {
+        private static void TickParryTimers(ref MoveData state, float deltaTime) {
             if (state.parryTimer > 0f)
                 state.parryTimer = Mathf.Max(0f, state.parryTimer - deltaTime);
 
+            float previousParryCooldownTimer = state.parryCooldownTimer;
+            if (state.parryCooldownTimer > 0f)
+                state.parryCooldownTimer = Mathf.Max(0f, state.parryCooldownTimer - deltaTime);
+
+            if (previousParryCooldownTimer > 0f && state.parryCooldownTimer <= 0f)
+                state.parryCooldownReadyThisFrame = true;
+        }
+
+        private void UpdateParryState(ref MoveData state) {
             if (state.parryStartedThisFrame) {
                 float duration = movementConfig != null ? movementConfig.parryDuration : 0.35f;
+                float cooldown = movementConfig != null ? movementConfig.parryCooldown : 0.35f;
                 state.parryTimer = Mathf.Max(0f, duration);
+                state.parryCooldownTimer = Mathf.Max(0f, cooldown);
             }
 
             state.isParrying = state.parryTimer > 0f;
@@ -1009,44 +974,17 @@ namespace Fragsurf.Movement {
             return angle;
         }
 
-        private void OnTriggerEnter (Collider other) {
-            
-            if (!triggers.Contains (other))
-                triggers.Add (other);
-
-        }
-
-        private void OnTriggerExit (Collider other) {
-            
-            if (triggers.Contains (other))
-                triggers.Remove (other);
-
-        }
-
-        private void OnCollisionStay (Collision collision) {
-            // Keep network simulation authoritative and deterministic.
-            // Ignore out-of-band rigidbody impulses in networked mode.
-            if (_hasNetworkedCharacter)
-                return;
-
-            if (collision.rigidbody == null)
-                return;
-
-            Vector3 relativeVelocity = collision.relativeVelocity * collision.rigidbody.mass / 50f;
-            Vector3 impactVelocity = new Vector3 (relativeVelocity.x * 0.0025f, relativeVelocity.y * 0.00025f, relativeVelocity.z * 0.0025f);
-
-            float maxYVel = Mathf.Max (moveData.velocity.y, 10f);
-            Vector3 newVelocity = new Vector3 (moveData.velocity.x + impactVelocity.x, Mathf.Clamp (moveData.velocity.y + Mathf.Clamp (impactVelocity.y, -0.5f, 0.5f), -maxYVel, maxYVel), moveData.velocity.z + impactVelocity.z);
-
-            newVelocity = Vector3.ClampMagnitude (newVelocity, Mathf.Max (moveData.velocity.magnitude, 30f));
-            moveData.velocity = newVelocity;
-
-        }
-
         private void UpdateMeleeState(ref MoveData state, float deltaTime) {
+            float previousMeleeCooldownTimer = state.meleeCooldownTimer;
             if (state.meleeCooldownTimer > 0f) {
                 state.meleeCooldownTimer = Mathf.Max(0f, state.meleeCooldownTimer - deltaTime);
             }
+
+            if (previousMeleeCooldownTimer > 0f && state.meleeCooldownTimer <= 0f)
+                state.meleeCooldownReadyThisFrame = true;
+
+            if (state.moveType == MoveType.HeavyMelee)
+                ClearSlideStateForActiveMelee(ref state);
 
             if (state.moveType == MoveType.Walk) {
                 if (state.wishMelee && state.meleeCooldownTimer <= 0f) {
@@ -1062,9 +1000,15 @@ namespace Fragsurf.Movement {
                     state.meleeHoldTimer = 0f;
                 }
             } else if (state.moveType == MoveType.HeavyMelee) {
+                float previousMeleeTimer = state.meleeTimer;
                 state.meleeTimer += deltaTime;
                 
                 if (state.meleeState == MoveData.MeleeState.Charging) {
+                    if (previousMeleeTimer < movementConfig.heavyMeleeMinCharge &&
+                        state.meleeTimer >= movementConfig.heavyMeleeMinCharge) {
+                        state.meleeMinChargeReachedThisFrame = true;
+                    }
+
                     bool releasedEarly = !state.wishMelee;
                     bool reachedFullCharge = state.meleeTimer >= movementConfig.heavyMeleeChargeTime;
                     bool reachedMinCharge = state.meleeTimer >= movementConfig.heavyMeleeMinCharge;
@@ -1080,7 +1024,7 @@ namespace Fragsurf.Movement {
                         Debug.Log($"[SurfCharacter] Lunge Ending. Timer: {state.meleeTimer}, Hit: {state.hasHitTarget}");
                         EnterMeleeRecovery(ref state);
                     }
-                    else if (state.crouching) {
+                    else if (state.slideRequested) {
                         CancelMelee(ref state, true);
                     }
                 }
@@ -1095,10 +1039,15 @@ namespace Fragsurf.Movement {
         private void BeginMeleeCharge(ref MoveData state) {
             state.moveType = MoveType.HeavyMelee;
             state.meleeState = MoveData.MeleeState.Charging;
-            state.meleeTimer = 0f;
+            // The initial hold already counts toward charge; do not charge twice.
+            state.meleeTimer = state.meleeHoldTimer;
             state.meleeHoldTimer = 0f;
-            state.velocity *= movementConfig.heavyMeleeChargeVelocityRetention;
-            state.velocity.y = 0f;
+            ClearSlideStateForActiveMelee(ref state);
+            state.velocity.x *= movementConfig.meleeChargeMomentumRetention;
+            state.velocity.z *= movementConfig.meleeChargeMomentumRetention;
+
+            if (state.meleeTimer >= movementConfig.heavyMeleeMinCharge)
+                state.meleeMinChargeReachedThisFrame = true;
         }
 
         private void BeginMeleeLunge(ref MoveData state) {
@@ -1109,6 +1058,7 @@ namespace Fragsurf.Movement {
             state.meleeHitResolved = false;
             state.meleeHitTargetObjectId = 0;
             state.meleeHitResolveTick = InputFrame.InvalidFrame;
+            ClearSlideStateForActiveMelee(ref state);
 
             Vector3 lungeDir = Quaternion.Euler(state.viewAngles.x, state.viewAngles.y, 0f) * Vector3.forward;
             if (state.grounded && lungeDir.y < 0f) {
@@ -1148,6 +1098,26 @@ namespace Fragsurf.Movement {
             state.meleeCooldownTimer = movementConfig.heavyMeleeCooldown;
         }
 
+        private void ClearSlideStateForActiveMelee(ref MoveData state) {
+            if (state == null)
+                return;
+
+            bool hadSlideState = state.sliding ||
+                                 state.wasSliding ||
+                                 state.slideSpeedCurrent > 0.0001f ||
+                                 state.slideDirection.sqrMagnitude > 0.0001f;
+            if (!hadSlideState)
+                return;
+
+            if (movementConfig != null)
+                state.slideDelay = Mathf.Max(state.slideDelay, movementConfig.slideDelay);
+
+            state.sliding = false;
+            state.wasSliding = false;
+            state.slideSpeedCurrent = 0f;
+            state.slideDirection = Vector3.zero;
+        }
+
         public bool IsParrying {
             get {
                 return _moveData != null && _moveData.isParrying;
@@ -1159,6 +1129,13 @@ namespace Fragsurf.Movement {
                 return;
 
             _moveData.parrySuccessThisFrame = true;
+        }
+
+        public void MarkGotParried() {
+            if (_moveData == null)
+                return;
+
+            _moveData.gotParriedThisFrame = true;
         }
 
         [System.Obsolete("Legacy method. Melee hit detection now handled by Hitbox component. Use ProcessHitboxes() instead.", false)]

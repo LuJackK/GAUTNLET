@@ -24,8 +24,6 @@ public class MenuController : MonoBehaviour
 
     private void Start()
     {
-        DontDestroyOnLoad(gameObject);
-
         if (networkManager == null)
         {
             networkManager = InstanceFinder.NetworkManager;

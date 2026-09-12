@@ -38,6 +38,7 @@ public class MapSelectScreen : MonoBehaviour
     [SerializeField] private UnityEvent<string> mapSelected = new UnityEvent<string>();
 
     private readonly List<GameObject> spawnedButtons = new List<GameObject>();
+    private bool loggedInvalidMainMenuRoot;
 
     public UnityEvent<string> MapSelected => mapSelected;
 
@@ -71,9 +72,7 @@ public class MapSelectScreen : MonoBehaviour
     {
         EnsureScreen();
         RebuildMapButtons();
-
-        if (mainMenuRoot != null)
-            mainMenuRoot.SetActive(false);
+        SetMainMenuRootVisible(false);
 
         if (screenRoot != null)
             screenRoot.SetActive(true);
@@ -83,9 +82,7 @@ public class MapSelectScreen : MonoBehaviour
     {
         if (screenRoot != null)
             screenRoot.SetActive(false);
-
-        if (mainMenuRoot != null)
-            mainMenuRoot.SetActive(true);
+        SetMainMenuRootVisible(true);
     }
 
     private void SelectMap(MapOption mapOption)
@@ -313,6 +310,28 @@ public class MapSelectScreen : MonoBehaviour
         grid.spacing = new Vector2(mapButtonSpacing, mapButtonSpacing);
         grid.childAlignment = TextAnchor.MiddleCenter;
         grid.constraint = GridLayoutGroup.Constraint.Flexible;
+    }
+
+    private void SetMainMenuRootVisible(bool visible)
+    {
+        if (mainMenuRoot == null)
+            return;
+
+        if (mainMenuRoot == gameObject)
+        {
+            if (!loggedInvalidMainMenuRoot)
+            {
+                Debug.LogWarning("MapSelectScreen: mainMenuRoot points to the controller object. Leaving it active so the map select flow stays responsive.", this);
+                loggedInvalidMainMenuRoot = true;
+            }
+
+            return;
+        }
+
+        if (screenRoot != null && screenRoot.transform.IsChildOf(mainMenuRoot.transform))
+            return;
+
+        mainMenuRoot.SetActive(visible);
     }
 
     private string GetDisplayName(MapOption mapOption)

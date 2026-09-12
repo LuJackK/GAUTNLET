@@ -134,7 +134,9 @@ namespace Fragsurf.ReplayHarness {
             CompareFloat(expected.dashCooldownTimer, actual.dashCooldownTimer, settings.scalarTolerance, "dashCooldownTimer", sb);
             CompareFloat(expected.meleeTimer, actual.meleeTimer, settings.scalarTolerance, "meleeTimer", sb);
             CompareFloat(expected.meleeCooldownTimer, actual.meleeCooldownTimer, settings.scalarTolerance, "meleeCooldownTimer", sb);
+            CompareFloat(expected.meleeHoldTimer, actual.meleeHoldTimer, settings.scalarTolerance, "meleeHoldTimer", sb);
             CompareFloat(expected.parryTimer, actual.parryTimer, settings.scalarTolerance, "parryTimer", sb);
+            CompareFloat(expected.parryCooldownTimer, actual.parryCooldownTimer, settings.scalarTolerance, "parryCooldownTimer", sb);
             CompareFloat(expected.crouchLerp, actual.crouchLerp, settings.scalarTolerance, "crouchLerp", sb);
             CompareFloat(expected.renderCrouchLerp, actual.renderCrouchLerp, settings.scalarTolerance, "renderCrouchLerp", sb);
             CompareFloat(expected.slideSpeedCurrent, actual.slideSpeedCurrent, settings.scalarTolerance, "slideSpeedCurrent", sb);

@@ -7815,6 +7815,7 @@ GameObject:
   m_Component:
   - component: {fileID: 7544863385880156932}
   - component: {fileID: 9155921673130077720}
+  - component: {fileID: 3529848564713022850}
   m_Layer: 6
   m_Name: HurtBox
   m_TagString: Untagged
@@ -7855,9 +7856,58 @@ MonoBehaviour:
   definition:
     id: 0
     shape: 0
-    size: {x: 1, y: 2, z: 1}
+    size: {x: 2, y: 2, z: 2}
     radius: 0
     offset: {x: 0, y: 0, z: 0}
+--- !u!23 &3529848564713022850
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 6208042102839308783}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_StaticShadowCaster: 0
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_MaskInteraction: 0
+  m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &6241995572754073395
 GameObject:
   m_ObjectHideFlags: 0
@@ -9234,6 +9284,7 @@ GameObject:
   - component: {fileID: 3472746310373338021}
   - component: {fileID: -7145852457052913079}
   - component: {fileID: 7967036886858646856}
+  - component: {fileID: 6021173849152037461}
   - component: {fileID: -8892953357829325516}
   - component: {fileID: -4746967813159440358}
   - component: {fileID: 7837431466360135714}
@@ -9384,7 +9435,7 @@ MonoBehaviour:
     doubleJumpForce: 10
     doubleJumpDelay: 0.05
     maxStamina: 5
-    staminaRegenRate: 0.5
+    staminaRegenRate: 0.3
     staminaRegenDelay: 0.1
     dashImpulse: 12
     dashDuration: 0.7
@@ -9445,6 +9496,7 @@ MonoBehaviour:
     heavyMeleeChargeVelocityRetention: 0.465
     heavyMeleeChargeFriction: 6
     parryDuration: 1
+    parryCooldown: 3
     heavyMeleeHitbox:
       id: gauntlet_heavy
       shape: 2
@@ -9620,13 +9672,71 @@ MonoBehaviour:
   _rollback: {fileID: -8892953357829325516}
   _inputCollector: {fileID: -4746967813159440358}
   _playerAiming: {fileID: 1034542312309700504}
-  _materialApplicator: {fileID: 0}
+  _materialApplicator: {fileID: 6021173849152037461}
   _removeEventSystemsFromPlayerHierarchy: 1
   _enforceCameraOwnershipInvariant: 1
   _enforceVirtualCameraOwnershipInvariant: 1
   _maxHealth: 3
   _respawnDelaySeconds: 0.05
   _combatDebugLogging: 1
+--- !u!114 &6021173849152037461
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 9017601728834380773}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5c53e0d498cf43be9fe00fb4be69e893, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Fragsurf.Movement.PlayerMaterialApplicator
+  helmet:
+    renderers:
+    - {fileID: 8474032942695378282}
+    materialSlot: 0
+    replaceAllSlots: 0
+  body:
+    renderers:
+    - {fileID: 6705230438769266137}
+    materialSlot: 0
+    replaceAllSlots: 0
+  gauntlet:
+    renderers:
+    - {fileID: 4813745722735520739}
+    materialSlot: 0
+    replaceAllSlots: 0
+  rocketBody:
+    renderers:
+    - {fileID: 6264168521783571481}
+    materialSlot: 0
+    replaceAllSlots: 0
+  rocketSlots:
+    renderers:
+    - {fileID: 6412340575121349429}
+    materialSlot: 0
+    replaceAllSlots: 0
+  fallbackMaterialSets:
+  - label: Player1
+    helmet: {fileID: 2100000, guid: f1b82b570c2cb3d41b1dabd34941409e, type: 2}
+    body: {fileID: 2100000, guid: e91f6f8908bbac049b67cf53a211710c, type: 2}
+    gauntlet: {fileID: 2100000, guid: c13313761ea8a7c428db5ed1ed9fa0b2, type: 2}
+    rocketBody: {fileID: 2100000, guid: 9791780493412964bad934d8fc436e67, type: 2}
+    rocketSlot0: {fileID: 2100000, guid: a0c91022be6e1e64bb20abcbd84b0a45, type: 2}
+    rocketSlot1: {fileID: 2100000, guid: 61631e44e65066544a15dfdcb4a0991b, type: 2}
+    rocketSlot2: {fileID: 2100000, guid: a0c91022be6e1e64bb20abcbd84b0a45, type: 2}
+    rocketSlot3: {fileID: 2100000, guid: 9791780493412964bad934d8fc436e67, type: 2}
+  - label: Player2
+    helmet: {fileID: 2100000, guid: 8841ee9d8d76e6a41bbed96d28aef68a, type: 2}
+    body: {fileID: 2100000, guid: e7d2915f00d3df949abfe2f64e242eb9, type: 2}
+    gauntlet: {fileID: 2100000, guid: 81a8136c6d22b2648a24446fe3a951e8, type: 2}
+    rocketBody: {fileID: 2100000, guid: 61631e44e65066544a15dfdcb4a0991b, type: 2}
+    rocketSlot0: {fileID: 2100000, guid: 250c7f0460734ed42bf7dd985faf67c7, type: 2}
+    rocketSlot1: {fileID: 2100000, guid: 250c7f0460734ed42bf7dd985faf67c7, type: 2}
+    rocketSlot2: {fileID: 0}
+    rocketSlot3: {fileID: 0}
+  autoFindNamedRenderers: 1
+  includeInactiveRenderers: 1
 --- !u!114 &-8892953357829325516
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9683,7 +9793,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584204268876664052
+  _initializedTimestamp: -8584197900898486090
   NetworkObserver: {fileID: 0}
   _enablePrediction: 1
   _predictionType: 0
@@ -9780,6 +9890,24 @@ MonoBehaviour:
         pitch: 1
         startDelay: 0
         duration: 0
+  meleeMinChargeReachedSounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: dea790eeaa0e697408f79a2283d185df, type: 3}
+        volume: 0.89
+        pitch: 1.84
+        startDelay: 0
+        duration: 0
+  meleeCooldownReadySounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: b3fcd27e610ba774580cfc65f533f030, type: 3}
+        volume: 1
+        pitch: 1.24
+        startDelay: 0
+        duration: 0
   parryingSounds:
     interval: 0
     bundles:
@@ -9794,7 +9922,7 @@ MonoBehaviour:
     bundles:
     - layers:
       - clip: {fileID: 8300000, guid: 8514639be7a174147a891c2bd5d78473, type: 3}
-        volume: 0.7
+        volume: 0.4
         pitch: 1
         startDelay: 0
         duration: 0
@@ -9802,6 +9930,15 @@ MonoBehaviour:
         volume: 1
         pitch: 1
         startDelay: 0
+        duration: 0
+  parryCooldownReadySounds:
+    interval: 0
+    bundles:
+    - layers:
+      - clip: {fileID: 8300000, guid: 3d5939f01403ae04581518ae10068923, type: 3}
+        volume: 0.71
+        pitch: 1.1
+        startDelay: 0.1
         duration: 0
   dashSounds:
     interval: 0

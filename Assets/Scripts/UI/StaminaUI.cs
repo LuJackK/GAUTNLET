@@ -12,6 +12,8 @@ public class StaminaUI : MonoBehaviour
     public GameObject barPrefab;
     public RectTransform healthContainer;
     public RectTransform staminaContainer;
+    public RectTransform parryCooldownContainer;
+    public RectTransform meleeCooldownContainer;
     public GameObject healthItemPrefab;
     public Sprite healthItemSprite;
     public Sprite staminaFillSprite;
@@ -21,7 +23,9 @@ public class StaminaUI : MonoBehaviour
     public bool autoCreateHud = true;
     public int fallbackMaxHealth = 3;
     public Vector2 barSize = new Vector2(34f, 180f);
+    public Vector2 cooldownCircleSize = new Vector2(56f, 56f);
     public float screenSideInset = 42f;
+    public float cooldownCircleVerticalOffset = 132f;
     public float healthItemSpacing = 4f;
     public float separatorThickness = 2f;
     public float regenPreviewSeconds = 1f;
@@ -30,6 +34,8 @@ public class StaminaUI : MonoBehaviour
     public Color healthColor = Color.red;
     public Color healthEmptyColor = new Color(0.35f, 0f, 0f, 0.25f);
     public Color staminaRegenPreviewColor = new Color(0.5f, 1f, 1f, 0.4f);
+    public Color parryCooldownColor = new Color(0.45f, 0.88f, 1f, 1f);
+    public Color meleeCooldownColor = new Color(1f, 0.42f, 0.08f, 1f);
     public Color silverBorderColor = new Color(0.75f, 0.75f, 0.75f, 1f);
     public Color backgroundColor = new Color(0f, 0f, 0f, 0.45f);
 
@@ -41,6 +47,10 @@ public class StaminaUI : MonoBehaviour
     private Image _staminaRegenPreviewImage;
     private RectTransform _staminaFillRect;
     private RectTransform _staminaRegenPreviewRect;
+    private Image _parryCooldownFillImage;
+    private Image _meleeCooldownFillImage;
+    private static Sprite _cooldownCircleSprite;
+    private static Sprite _cooldownRingSprite;
 
     void Start()
     {
@@ -66,6 +76,7 @@ public class StaminaUI : MonoBehaviour
 
         UpdateHealthItems(ResolveCurrentHealth());
         UpdateStaminaFill();
+        UpdateCooldownCircles();
     }
 
     void RebuildBars()
@@ -86,6 +97,16 @@ public class StaminaUI : MonoBehaviour
             _staminaRegenPreviewRect = null;
         }
 
+        if (parryCooldownContainer != null) {
+            ClearChildren(parryCooldownContainer);
+            _parryCooldownFillImage = null;
+        }
+
+        if (meleeCooldownContainer != null) {
+            ClearChildren(meleeCooldownContainer);
+            _meleeCooldownFillImage = null;
+        }
+
         if (player == null || player.movementConfig == null)
             return;
 
@@ -94,8 +115,11 @@ public class StaminaUI : MonoBehaviour
 
         BuildHealthItems();
         BuildStaminaBar();
+        BuildCooldownCircle(parryCooldownContainer, "Parry Cooldown", parryCooldownColor, out _parryCooldownFillImage);
+        BuildCooldownCircle(meleeCooldownContainer, "Melee Cooldown", meleeCooldownColor, out _meleeCooldownFillImage);
         UpdateHealthItems(ResolveCurrentHealth());
         UpdateStaminaFill();
+        UpdateCooldownCircles();
     }
 
     private void ResolvePlayerReferences()
@@ -173,11 +197,17 @@ public class StaminaUI : MonoBehaviour
 
         if (staminaContainer == null)
             staminaContainer = EnsureContainer(canvasRoot, "Stamina Bar", false);
+        if (parryCooldownContainer == null)
+            parryCooldownContainer = EnsureCooldownContainer(canvasRoot, "Parry Cooldown", true);
+        if (meleeCooldownContainer == null)
+            meleeCooldownContainer = EnsureCooldownContainer(canvasRoot, "Melee Cooldown", false);
         if (barContainer == null)
             barContainer = staminaContainer;
 
         ConfigureSideContainer(healthContainer, true);
         ConfigureSideContainer(staminaContainer, false);
+        ConfigureCooldownContainer(parryCooldownContainer, true);
+        ConfigureCooldownContainer(meleeCooldownContainer, false);
         ConfigureBarFrame(healthContainer);
         ConfigureBarFrame(staminaContainer);
     }
@@ -216,6 +246,19 @@ public class StaminaUI : MonoBehaviour
         return rect;
     }
 
+    private RectTransform EnsureCooldownContainer(RectTransform canvasRoot, string containerName, bool leftSide)
+    {
+        Transform existing = canvasRoot.Find(containerName);
+        GameObject containerObject = existing != null
+            ? existing.gameObject
+            : new GameObject(containerName, typeof(RectTransform));
+
+        containerObject.transform.SetParent(canvasRoot, false);
+        RectTransform rect = containerObject.GetComponent<RectTransform>();
+        ConfigureCooldownContainer(rect, leftSide);
+        return rect;
+    }
+
     private void ConfigureSideContainer(RectTransform rect, bool leftSide)
     {
         if (rect == null)
@@ -226,6 +269,29 @@ public class StaminaUI : MonoBehaviour
         rect.pivot = new Vector2(leftSide ? 0f : 1f, 0.5f);
         rect.anchoredPosition = new Vector2(leftSide ? screenSideInset : -screenSideInset, 0f);
         rect.sizeDelta = barSize;
+        rect.localScale = Vector3.one;
+        rect.localRotation = Quaternion.identity;
+
+        LayoutGroup layoutGroup = rect.GetComponent<LayoutGroup>();
+        if (layoutGroup != null)
+            layoutGroup.enabled = false;
+
+        ContentSizeFitter contentSizeFitter = rect.GetComponent<ContentSizeFitter>();
+        if (contentSizeFitter != null)
+            contentSizeFitter.enabled = false;
+    }
+
+    private void ConfigureCooldownContainer(RectTransform rect, bool leftSide)
+    {
+        if (rect == null)
+            return;
+
+        rect.anchorMin = new Vector2(leftSide ? 0f : 1f, 0.5f);
+        rect.anchorMax = new Vector2(leftSide ? 0f : 1f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(leftSide ? screenSideInset + (cooldownCircleSize.x * 0.5f) : -screenSideInset - (cooldownCircleSize.x * 0.5f),
+                                            -cooldownCircleVerticalOffset);
+        rect.sizeDelta = cooldownCircleSize;
         rect.localScale = Vector3.one;
         rect.localRotation = Quaternion.identity;
 
@@ -347,6 +413,35 @@ public class StaminaUI : MonoBehaviour
         }
     }
 
+    private void BuildCooldownCircle(RectTransform container, string objectName, Color fillColor, out Image fillImage)
+    {
+        fillImage = null;
+        if (container == null)
+            return;
+
+        EnsureCooldownSprites();
+
+        Image background = CreateImage("Background", container, backgroundColor);
+        background.sprite = _cooldownCircleSprite;
+        background.type = Image.Type.Simple;
+        StretchToParent(background.rectTransform);
+
+        fillImage = CreateImage("Fill", container, fillColor);
+        fillImage.sprite = _cooldownCircleSprite;
+        fillImage.type = Image.Type.Filled;
+        fillImage.fillMethod = Image.FillMethod.Radial360;
+        fillImage.fillOrigin = (int)Image.Origin360.Top;
+        fillImage.fillClockwise = false;
+        fillImage.fillAmount = 1f;
+        StretchToParent(fillImage.rectTransform);
+
+        Image ring = CreateImage("Ring", container, silverBorderColor);
+        ring.sprite = _cooldownRingSprite;
+        ring.type = Image.Type.Simple;
+        StretchToParent(ring.rectTransform);
+        ring.raycastTarget = false;
+    }
+
     private void UpdateHealthItems(int currentHealth)
     {
         currentHealth = Mathf.Clamp(currentHealth, 0, _healthImages.Count);
@@ -376,6 +471,18 @@ public class StaminaUI : MonoBehaviour
         float previewAmount = Mathf.Clamp01(previewStamina / maxStamina);
         SetVerticalSegment(_staminaRegenPreviewRect, fillAmount, previewAmount);
         _staminaRegenPreviewImage.enabled = belowMax && previewAmount > fillAmount;
+    }
+
+    private void UpdateCooldownCircles()
+    {
+        if (player == null || player.moveData == null || player.movementConfig == null)
+            return;
+
+        if (_parryCooldownFillImage != null)
+            _parryCooldownFillImage.fillAmount = ResolveCooldownFillAmount(player.moveData.parryCooldownTimer, player.movementConfig.parryCooldown);
+
+        if (_meleeCooldownFillImage != null)
+            _meleeCooldownFillImage.fillAmount = ResolveCooldownFillAmount(player.moveData.meleeCooldownTimer, player.movementConfig.heavyMeleeCooldown);
     }
 
     private int ResolveCurrentHealth()
@@ -444,6 +551,53 @@ public class StaminaUI : MonoBehaviour
         outline.effectColor = silverBorderColor;
         outline.effectDistance = new Vector2(1f, -1f);
         outline.useGraphicAlpha = false;
+    }
+
+    private static float ResolveCooldownFillAmount(float cooldownTimer, float cooldownDuration)
+    {
+        float clampedDuration = Mathf.Max(0f, cooldownDuration);
+        if (clampedDuration <= Mathf.Epsilon)
+            return 1f;
+
+        float normalizedRemaining = Mathf.Clamp01(Mathf.Max(0f, cooldownTimer) / clampedDuration);
+        return 1f - normalizedRemaining;
+    }
+
+    private static void EnsureCooldownSprites()
+    {
+        if (_cooldownCircleSprite == null)
+            _cooldownCircleSprite = CreateCircleSprite(128, 1f, 0f);
+
+        if (_cooldownRingSprite == null)
+            _cooldownRingSprite = CreateCircleSprite(128, 1f, 0.84f);
+    }
+
+    private static Sprite CreateCircleSprite(int size, float outerRadiusNormalized, float innerRadiusNormalized)
+    {
+        Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false);
+        texture.name = innerRadiusNormalized > 0f ? "HUD_CooldownRing" : "HUD_CooldownCircle";
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+
+        Vector2 center = new Vector2((size - 1) * 0.5f, (size - 1) * 0.5f);
+        float outerRadius = Mathf.Max(1f, (size * 0.5f) * Mathf.Clamp01(outerRadiusNormalized));
+        float innerRadius = outerRadius * Mathf.Clamp01(innerRadiusNormalized);
+        Color clear = new Color(1f, 1f, 1f, 0f);
+        Color solid = Color.white;
+
+        for (int y = 0; y < size; y++) {
+            for (int x = 0; x < size; x++) {
+                Vector2 pixelCenter = new Vector2(x, y);
+                float distance = Vector2.Distance(pixelCenter, center);
+                bool insideOuter = distance <= outerRadius;
+                bool outsideInner = distance >= innerRadius;
+                texture.SetPixel(x, y, insideOuter && outsideInner ? solid : clear);
+            }
+        }
+
+        texture.Apply();
+        Rect rect = new Rect(0f, 0f, size, size);
+        return Sprite.Create(texture, rect, new Vector2(0.5f, 0.5f), size);
     }
 
     private void StretchToParent(RectTransform rect)

@@ -1,6 +1,7 @@
 using UnityEngine;
 using Unity.Cinemachine;
 using Fragsurf.Movement;
+using GAUNTLET.UI;
 
 public class PlayerAiming : MonoBehaviour
 {
@@ -46,15 +47,20 @@ public class PlayerAiming : MonoBehaviour
 	{
         _networkedCharacter = GetComponentInParent<NetworkedCharacter>();
 
-		// Lock the mouse
-		Cursor.lockState = CursorLockMode.Locked;
-		Cursor.visible   = false;
+		if (HasLocalPresentationAuthority() && !InGameMenu.IsOpen)
+		{
+			Cursor.lockState = CursorLockMode.Locked;
+			Cursor.visible = false;
+		}
 	}
 
 	private void Update()
 	{
         if (!HasLocalPresentationAuthority())
             return;
+
+		if (InGameMenu.IsOpen)
+			return;
 
 		// Fix pausing
 		if (Mathf.Abs(Time.timeScale) <= 0)

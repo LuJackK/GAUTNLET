@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 namespace Fragsurf.Movement {
 
     [System.Serializable]
@@ -44,14 +44,16 @@ namespace Fragsurf.Movement {
         [Range (30f, 75f)] public float slopeLimit = 45f;
 
         [Header ("Air movement")]
-        public bool clampAirSpeed = true;
-        public float airCap = 0.4f;
+        [HideInInspector] public bool clampAirSpeed = true;
+        [HideInInspector] public float airCap = 0.4f;
         public float airAcceleration = 12f;
-        public float airFriction = 0.4f;
+        [HideInInspector] public float airFriction = 0.4f;
+        [Tooltip("Lateral steering acceleration in metres/second squared. Preserves carried air speed.")]
+        public float airControlAcceleration = 18f;
 
         [Header ("Ground movement")]
         public float walkSpeed = 7f;
-        public float sprintSpeed = 12f;
+        [HideInInspector] public float sprintSpeed = 12f;
         public float acceleration = 14f;
         public float deceleration = 10f;
 
@@ -67,23 +69,27 @@ namespace Fragsurf.Movement {
 
         [Header ("Sliding")]
         public float minimumSlideSpeed = 9f;
-        public float maximumSlideSpeed = 18f;
-        public float slideSpeedMultiplier = 1.75f;
-        public float slideFriction = 14f;
-        public float downhillSlideSpeedMultiplier = 2.5f;
+        [HideInInspector] public float maximumSlideSpeed = 18f;
+        [HideInInspector] public float slideSpeedMultiplier = 1.75f;
+        [HideInInspector] public float slideFriction = 14f;
+        [HideInInspector] public float downhillSlideSpeedMultiplier = 2.5f;
         public float slideDelay = 0.5f;
-        public float slideSteerForce = 5f;
+        [HideInInspector] public float slideSteerForce = 5f;
         public float slideTiltAngle = 15f;
         public float slideTiltSpeed = 10f;
+        [Tooltip("Slide braking in metres/second squared. No speed multiplier is applied on entry.")]
+        public float slideDrag = 3f;
+        public float slideControlAcceleration = 10f;
+        public float slideSlopeAcceleration = 1f;
 
-        [Header ("Underwater")]
-        public float swimUpSpeed = 12f;
-        public float underwaterSwimSpeed = 3f;
-        public float underwaterAcceleration = 6f;
-        public float underwaterDeceleration = 3f;
-        public float underwaterFriction = 2f;
-        public float underwaterGravity = 6f;
-        public float underwaterVelocityDampening = 2f;
+        // Serialized legacy fields are retained for asset compatibility, not simulated.
+        [HideInInspector] public float swimUpSpeed = 12f;
+        [HideInInspector] public float underwaterSwimSpeed = 3f;
+        [HideInInspector] public float underwaterAcceleration = 6f;
+        [HideInInspector] public float underwaterDeceleration = 3f;
+        [HideInInspector] public float underwaterFriction = 2f;
+        [HideInInspector] public float underwaterGravity = 6f;
+        [HideInInspector] public float underwaterVelocityDampening = 2f;
 
         [Header("Heavy Melee")]
         public float heavyMeleeChargeTime = 1.0f; // Max charge duration
@@ -100,13 +106,16 @@ namespace Fragsurf.Movement {
         [Header("Heavy Melee Physics")]
         [Tooltip("Fraction of velocity retained when entering charge state (0-1)")]
         [Range(0f, 1f)]
-        public float heavyMeleeChargeVelocityRetention = 0.1f;
+        [HideInInspector] public float heavyMeleeChargeVelocityRetention = 0.1f;
         [Tooltip("Friction applied while sliding during charge")]
         public float heavyMeleeChargeFriction = 6.0f;
+        [Range(0f, 1f)] public float meleeChargeMomentumRetention = 0.8f;
 
         [Header("Parry")]
         [Tooltip("How long the parry window stays active after pressing parry.")]
         public float parryDuration = 0.35f;
+        [Tooltip("Minimum seconds after a parry starts before another parry can start.")]
+        public float parryCooldown = 0.35f;
 
         [Header("Hitboxes & Hurtboxes")]
         public HitboxDefinition heavyMeleeHitbox = new HitboxDefinition {

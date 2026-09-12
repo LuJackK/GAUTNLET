@@ -62,7 +62,7 @@ namespace Fragsurf.Movement {
                         animator.SetTrigger(meleeLungeParameterName);
                     if (state.dashStartedThisFrame)
                         animator.SetTrigger(dashParameterName);
-                    if (prevState.isDashing && !state.isDashing)
+                    if ((prevState.isDashing || state.dashStartedThisFrame) && !state.isDashing)
                         animator.SetTrigger(dashDoneParameterName);
                     if (state.doubleJumpedThisFrame)
                         animator.SetTrigger(doubleJumpParameterName);

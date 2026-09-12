@@ -103,7 +103,8 @@ namespace Fragsurf.Movement {
         internal PlayerAiming PlayerAiming => _playerAiming;
         internal bool EnforceCameraOwnershipInvariant => _enforceCameraOwnershipInvariant;
         internal bool EnforceVirtualCameraOwnershipInvariant => _enforceVirtualCameraOwnershipInvariant;
-        internal bool ShouldIgnoreCrouchForForeignSimulation => !DebugHasLocalAuthority && (IsServerInitialized || IsClientInitialized);
+        // Collision and melee cancellation must consume crouch on every peer.
+        internal bool ShouldIgnoreCrouchForForeignSimulation => false;
         internal bool HasEnabledInputCollector => _inputCollector != null && _inputCollector.enabled;
         internal bool HasResolvedLocalConnection => Owner != null && Owner.IsValid && LocalConnection != null && LocalConnection.IsValid;
         internal TimeManager NetworkTimeManager => TimeManager;
@@ -508,6 +509,9 @@ namespace Fragsurf.Movement {
                 _character.MarkParrySuccess();
 
                 if (attacker != null && attacker != this) {
+                    if (attacker._character != null)
+                        attacker._character.MarkGotParried();
+
                     if (_combatDebugLogging) {
                         string attackerId = hitbox != null ? hitbox.definition.id : "<null>";
                         Debug.Log($"[NetworkedCharacter] Server parry reflected damage. defenderObjectId={ObjectId}, attackerObjectId={attacker.ObjectId}, attackerHitboxId={attackerId}", this);

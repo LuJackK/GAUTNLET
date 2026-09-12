@@ -158,9 +158,7 @@ namespace Fragsurf.ReplayHarness {
                 return authoritativeRecord.state.Clone();
 
             ReplayStateSample sample = authoritativeRecord != null ? authoritativeRecord.sample : default;
-            MoveData state = (environment.character != null && environment.character.moveData != null)
-                ? environment.character.moveData.Clone()
-                : new MoveData();
+            MoveData state = CreateStateShell(environment);
 
             state.frame = sample.frame;
             state.origin = sample.position;
@@ -193,6 +191,7 @@ namespace Fragsurf.ReplayHarness {
             state.meleeState = sample.meleeState;
             state.meleeTimer = sample.meleeTimer;
             state.meleeCooldownTimer = sample.meleeCooldownTimer;
+            state.meleeHoldTimer = sample.meleeHoldTimer;
             state.crouchLerp = sample.crouchLerp;
             state.renderCrouchLerp = sample.renderCrouchLerp;
             state.uncrouchDown = sample.uncrouchDown;
@@ -206,12 +205,35 @@ namespace Fragsurf.ReplayHarness {
             state.isParrying = sample.isParrying;
             state.wishParry = false;
             state.parryTimer = sample.parryTimer;
+            state.parryCooldownTimer = sample.parryCooldownTimer;
             state.meleeHitTargetObjectId = sample.meleeHitTargetObjectId;
             state.meleeHitResolveTick = sample.meleeHitResolveTick;
             state.lastConsumedJumpPressFrame = sample.lastConsumedJumpPressFrame;
             state.lastConsumedDashPressFrame = sample.lastConsumedDashPressFrame;
             state.lastConsumedParryPressFrame = sample.lastConsumedParryPressFrame;
             return state;
+        }
+
+        private static MoveData CreateStateShell(ReplayHarnessEnvironment environment) {
+            MoveData template = environment != null && environment.character != null
+                ? environment.character.moveData
+                : null;
+
+            return new MoveData {
+                playerTransform = template != null ? template.playerTransform : null,
+                viewTransform = template != null ? template.viewTransform : null,
+                viewTransformDefaultLocalPos = template != null ? template.viewTransformDefaultLocalPos : Vector3.zero,
+                slopeLimit = template != null ? template.slopeLimit : 45f,
+                rigidbodyPushForce = template != null ? template.rigidbodyPushForce : 1f,
+                defaultHeight = template != null ? template.defaultHeight : 2f,
+                crouchingHeight = template != null ? template.crouchingHeight : 1f,
+                crouchingSpeed = template != null ? template.crouchingSpeed : 10f,
+                slidingEnabled = template != null && template.slidingEnabled,
+                laddersEnabled = template != null && template.laddersEnabled,
+                angledLaddersEnabled = template != null && template.angledLaddersEnabled,
+                useStepOffset = template != null && template.useStepOffset,
+                stepOffset = template != null ? template.stepOffset : 0f
+            };
         }
     }
 }

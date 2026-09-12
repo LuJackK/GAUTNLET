@@ -40,7 +40,7 @@ This folder owns the FishNet-backed multiplayer player flow: spawning, ownership
 - Spawn pose matters for prediction startup. The owner normally waits for an authoritative spawn pose, with a short fail-safe for local authority.
 - Replay input integrity is strict. Missing or conflicting canonical inputs log errors and can abort replay.
 - `RollbackStateHistory` is a 256-frame ring buffer; `NetworkedCharacterPredictionReconcileService` keeps replay inputs in a 1024-frame ring.
-- Foreign/non-owner simulation intentionally strips crouch fields through `ShouldIgnoreCrouchForForeignSimulation`. Preserve this unless you are explicitly changing remote simulation policy.
+- Owner, server, and spectator simulation now consume identical crouch input. `ShouldIgnoreCrouchForForeignSimulation` returns false for compatibility. Crouch changes collision geometry and lunge cancellation; never strip it according to ownership.
 - Spectator presentation currently applies authoritative yaw only; pitch is not a steady-state spectator presentation target.
 - Camera ownership is enforced repeatedly in `LateUpdate` so remote player cameras/audio listeners do not become active.
 - `PlayerSpawnService` auto-creates after scene load and calls `DontDestroyOnLoad`; check for duplicates or stale persistent instances when debugging scene transitions.

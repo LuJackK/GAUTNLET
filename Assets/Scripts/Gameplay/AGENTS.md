@@ -1,5 +1,16 @@
 # Gameplay Folder Orientation
 
+## Current movement contract (September 2026 overhaul)
+
+See MOVEMENT_OVERHAUL.md at the project root for tuning and validation. SurfController now uses a single tick flow and a swept collision motor. Water/ladder branches and camera-water runtime objects are retired; marker scripts and hidden serialized settings remain only for asset compatibility. SurfPhysics is query-only and does not push rigidbodies. Tracer uses collider shape dimensions rather than cached bounds.
+
+SimulationTick binds the supplied MoveData snapshot and restores its collider before simulation. Crouch input sets slideRequested; crouching records the actual collider stance and must not be overwritten directly from input. Jump takes priority over slides and preserves horizontal velocity. Timers advance in every mode. Slide speed/direction are derived from velocity, never an independent source of momentum.
+
+Only fresh authoritative ticks query melee targets and apply hit outcomes. Replay/client prediction consumes reconciled hit state because live targets have no historical collision state here. Do not reintroduce live-target hit queries during replay. Client and server simulate the same crouch input.
+
+The orientation below describes the surrounding integration; historical references to water, ladder movement, or camera-water creation are superseded by this contract.
+
+
 This folder contains the player-facing gameplay stack: surf-style movement, local input capture, hitbox/hurtbox combat, simple environment markers, and presentation/VFX helpers. Most code is under the `Fragsurf.Movement` namespace, with combat under `Fragsurf.Combat`; a few small environment/presentation scripts are in the global namespace.
 
 ## Main Areas

@@ -10,15 +10,15 @@ PrefabInstance:
     m_Modifications:
     - target: {fileID: -8679921383154817045, guid: c14b64599a733634fa1cda8f7751a06b, type: 3}
       propertyPath: m_LocalScale.x
-      value: 0.5
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: c14b64599a733634fa1cda8f7751a06b, type: 3}
       propertyPath: m_LocalScale.y
-      value: 0.5
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: c14b64599a733634fa1cda8f7751a06b, type: 3}
       propertyPath: m_LocalScale.z
-      value: 0.5
+      value: 0.3
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: c14b64599a733634fa1cda8f7751a06b, type: 3}
       propertyPath: m_LocalPosition.x
@@ -120,7 +120,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584204298588200664
+  _initializedTimestamp: -8584197922333364350
   NetworkObserver: {fileID: 0}
   _enablePrediction: 0
   _predictionType: 0
@@ -143,7 +143,7 @@ MonoBehaviour:
   SerializedTransformProperties:
     Position: {x: 0, y: 0, z: 0}
     Rotation: {x: 0, y: -0, z: -0, w: 1}
-    Scale: {x: 0.7, y: 0.7, z: 0.7}
+    Scale: {x: 0.5, y: 0.5, z: 0.5}
     IsValid: 1
 --- !u!114 &2555260965744291515
 MonoBehaviour:

@@ -319,9 +319,48 @@ namespace GAUNTLET.Networking
             if (manager == null)
                 return;
 
-            int joinIndex = manager.AssignMaterialForConnection(networkedCharacter, conn.ClientId);
+            int joinIndex = ResolveMaterialJoinIndex(conn);
+            joinIndex = manager.AssignMaterialForConnection(networkedCharacter, conn.ClientId, joinIndex);
             if (logOwnershipDiagnostics)
                 Debug.Log($"PlayerSpawnService: Assigned material join index {joinIndex} to client {conn.ClientId}.", networkedCharacter);
+        }
+
+        private int ResolveMaterialJoinIndex(NetworkConnection conn)
+        {
+            if (conn == null)
+                return -1;
+
+            bool reserveHostSlot = networkManager != null && networkManager.IsHostStarted;
+            if (reserveHostSlot && conn.IsHost)
+                return 0;
+
+            List<NetworkConnection> remoteConnections = new List<NetworkConnection>();
+            if (networkManager != null && networkManager.ServerManager != null)
+            {
+                foreach (NetworkConnection candidate in networkManager.ServerManager.Clients.Values)
+                {
+                    if (candidate == null || !candidate.IsValid)
+                        continue;
+
+                    if (reserveHostSlot && candidate.IsHost)
+                        continue;
+
+                    remoteConnections.Add(candidate);
+                }
+            }
+
+            remoteConnections.Sort((left, right) => left.ClientId.CompareTo(right.ClientId));
+
+            for (int i = 0; i < remoteConnections.Count; i++)
+            {
+                if (remoteConnections[i].ClientId != conn.ClientId)
+                    continue;
+
+                return reserveHostSlot ? i + 1 : i;
+            }
+
+            int fallbackIndex = remoteConnections.Count;
+            return reserveHostSlot ? fallbackIndex + 1 : fallbackIndex;
         }
 
         private PlayerMaterialManager ResolvePlayerMaterialManager(bool createIfMissing)

@@ -145,12 +145,14 @@ namespace Fragsurf.Movement {
                 MeleeState = (byte)((state != null) ? (int)state.meleeState : (int)MoveData.MeleeState.None),
                 MeleeTimer = (state != null) ? state.meleeTimer : 0f,
                 MeleeCooldownTimer = (state != null) ? state.meleeCooldownTimer : 0f,
+                MeleeHoldTimer = (state != null) ? state.meleeHoldTimer : 0f,
                 HasHitTarget = BoolToByte(state != null && state.hasHitTarget),
                 MeleeHitResolved = BoolToByte(state != null && state.meleeHitResolved),
                 MeleeHitTargetObjectId = (state != null) ? state.meleeHitTargetObjectId : 0,
                 MeleeHitResolveTick = (state != null) ? state.meleeHitResolveTick : InputFrame.InvalidFrame,
                 IsParrying = BoolToByte(state != null && state.isParrying),
                 ParryTimer = (state != null) ? state.parryTimer : 0f,
+                ParryCooldownTimer = (state != null) ? state.parryCooldownTimer : 0f,
                 ParryStartedThisFrame = BoolToByte(state != null && state.parryStartedThisFrame),
                 ParrySuccessThisFrame = BoolToByte(state != null && state.parrySuccessThisFrame),
                 LastConsumedParryPressFrame = (state != null) ? state.lastConsumedParryPressFrame : -1,
@@ -167,7 +169,18 @@ namespace Fragsurf.Movement {
                 return;
 
             _diagnostics.ReconcilePacketsReceived++;
-            MoveData authoritativeState = BuildAuthoritativeMoveData(reconcileData, character);
+
+            RollbackManager rollback = _owner.RollbackManager;
+            MoveData predictedState = null;
+            bool hasPredictedState = false;
+            if (!_owner.IsPureClientProxy) {
+                if (rollback == null)
+                    return;
+
+                hasPredictedState = rollback.TryGetPredictedState(reconcileData.Frame, out predictedState);
+            }
+
+            MoveData authoritativeState = BuildAuthoritativeMoveData(reconcileData, character, predictedState);
 
             if (_owner.IsPureClientProxy) {
                 _spectatorSnapshots.Store(reconcileData.Frame, authoritativeState);
@@ -176,12 +189,8 @@ namespace Fragsurf.Movement {
                 return;
             }
 
-            RollbackManager rollback = _owner.RollbackManager;
-            if (rollback == null)
-                return;
-
             StateDivergenceReport report;
-            if (!rollback.TryGetPredictedState(reconcileData.Frame, out MoveData predictedState)) {
+            if (!hasPredictedState) {
                 report = new StateDivergenceReport {
                     HasPredictedState = false,
                     Decision = CorrectionDecision.HardCorrect,
@@ -226,8 +235,12 @@ namespace Fragsurf.Movement {
             _spectatorSnapshots.Clear();
         }
 
-        private MoveData BuildAuthoritativeMoveData(NetworkedCharacterReconcileData reconcileData, SurfCharacter character) {
-            MoveData state = character.moveData != null ? character.moveData.Clone() : new MoveData();
+        private MoveData BuildAuthoritativeMoveData(NetworkedCharacterReconcileData reconcileData,
+                                                    SurfCharacter character,
+                                                    MoveData predictedState) {
+            MoveData state = predictedState != null
+                ? predictedState.Clone()
+                : CreateAuthoritativeMoveDataShell(character);
             state.frame = reconcileData.Frame;
             state.origin = reconcileData.Position;
             state.velocity = reconcileData.Velocity;
@@ -271,6 +284,7 @@ namespace Fragsurf.Movement {
                                                                 (byte)MoveData.MeleeState.Recovery);
             state.meleeTimer = reconcileData.MeleeTimer;
             state.meleeCooldownTimer = reconcileData.MeleeCooldownTimer;
+            state.meleeHoldTimer = reconcileData.MeleeHoldTimer;
             state.hasHitTarget = ByteToBool(reconcileData.HasHitTarget);
             state.meleeHitResolved = ByteToBool(reconcileData.MeleeHitResolved);
             state.meleeHitTargetObjectId = reconcileData.MeleeHitTargetObjectId;
@@ -278,6 +292,7 @@ namespace Fragsurf.Movement {
             state.isParrying = ByteToBool(reconcileData.IsParrying);
             state.wishParry = false;
             state.parryTimer = reconcileData.ParryTimer;
+            state.parryCooldownTimer = reconcileData.ParryCooldownTimer;
             state.parryStartedThisFrame = ByteToBool(reconcileData.ParryStartedThisFrame);
             state.parrySuccessThisFrame = ByteToBool(reconcileData.ParrySuccessThisFrame);
             state.lastConsumedParryPressFrame = reconcileData.LastConsumedParryPressFrame;
@@ -292,6 +307,27 @@ namespace Fragsurf.Movement {
             }
 
             return state;
+        }
+
+        private static MoveData CreateAuthoritativeMoveDataShell(SurfCharacter character) {
+            MoveData template = character != null ? character.moveData : null;
+            return new MoveData {
+                playerTransform = template != null ? template.playerTransform : (character != null ? character.transform : null),
+                viewTransform = template != null ? template.viewTransform : (character != null ? character.viewTransform : null),
+                viewTransformDefaultLocalPos = template != null
+                    ? template.viewTransformDefaultLocalPos
+                    : (character != null && character.viewTransform != null ? character.viewTransform.localPosition : Vector3.zero),
+                slopeLimit = template != null ? template.slopeLimit : (character != null && character.movementConfig != null ? character.movementConfig.slopeLimit : 45f),
+                rigidbodyPushForce = template != null ? template.rigidbodyPushForce : (character != null ? character.rigidbodyPushForce : 1f),
+                defaultHeight = template != null ? template.defaultHeight : 2f,
+                crouchingHeight = template != null ? template.crouchingHeight : (character != null ? character.crouchingHeightMultiplier : 1f),
+                crouchingSpeed = template != null ? template.crouchingSpeed : (character != null ? character.crouchingSpeed : 10f),
+                slidingEnabled = template != null ? template.slidingEnabled : character != null && character.slidingEnabled,
+                laddersEnabled = template != null ? template.laddersEnabled : character != null && character.laddersEnabled,
+                angledLaddersEnabled = template != null ? template.angledLaddersEnabled : character != null && character.supportAngledLadders,
+                useStepOffset = template != null ? template.useStepOffset : character != null && character.useStepOffset,
+                stepOffset = template != null ? template.stepOffset : (character != null ? character.stepOffset : 0f)
+            };
         }
 
         private static byte BoolToByte(bool value) {
@@ -576,7 +612,9 @@ namespace Fragsurf.Movement {
                 state.slideDelay = Mathf.Lerp(from.slideDelay, to.slideDelay, t);
                 state.meleeTimer = Mathf.Lerp(from.meleeTimer, to.meleeTimer, t);
                 state.meleeCooldownTimer = Mathf.Lerp(from.meleeCooldownTimer, to.meleeCooldownTimer, t);
+                state.meleeHoldTimer = Mathf.Lerp(from.meleeHoldTimer, to.meleeHoldTimer, t);
                 state.parryTimer = Mathf.Lerp(from.parryTimer, to.parryTimer, t);
+                state.parryCooldownTimer = Mathf.Lerp(from.parryCooldownTimer, to.parryCooldownTimer, t);
                 return state;
             }
 

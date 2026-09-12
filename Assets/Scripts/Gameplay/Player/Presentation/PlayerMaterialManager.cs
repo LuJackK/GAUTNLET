@@ -65,6 +65,31 @@ namespace Fragsurf.Movement {
             return joinIndex;
         }
 
+        public int RegisterPlayer(int clientId, int joinIndex) {
+            if (joinIndex < 0)
+                return RegisterPlayer(clientId);
+
+            if (_joinIndexByClientId.TryGetValue(clientId, out int existingJoinIndex)) {
+                if (existingJoinIndex == joinIndex)
+                    return existingJoinIndex;
+
+                _joinIndexByClientId[clientId] = joinIndex;
+
+                if (logAssignments)
+                    Debug.Log($"[PlayerMaterialManager] Updated client {clientId} from lobby join index {existingJoinIndex} to {joinIndex}.", this);
+
+                return joinIndex;
+            }
+
+            _joinIndexByClientId.Add(clientId, joinIndex);
+            _nextJoinIndex = Mathf.Max(_nextJoinIndex, joinIndex + 1);
+
+            if (logAssignments)
+                Debug.Log($"[PlayerMaterialManager] Registered client {clientId} as lobby join index {joinIndex}.", this);
+
+            return joinIndex;
+        }
+
         public void UnregisterPlayer(int clientId) {
             if (!releaseJoinSlotOnDisconnect)
                 return;
@@ -82,13 +107,16 @@ namespace Fragsurf.Movement {
             return materialSet != null;
         }
 
-        public int AssignMaterialForConnection(NetworkedCharacter character, int clientId) {
+        public int AssignMaterialForConnection(NetworkedCharacter character, int clientId, int joinIndex = -1) {
             if (character == null)
                 return -1;
 
-            int joinIndex = RegisterPlayer(clientId);
-            character.SetPlayerMaterialJoinIndexServer(joinIndex);
-            return joinIndex;
+            int resolvedJoinIndex = (joinIndex >= 0)
+                ? RegisterPlayer(clientId, joinIndex)
+                : RegisterPlayer(clientId);
+
+            character.SetPlayerMaterialJoinIndexServer(resolvedJoinIndex);
+            return resolvedJoinIndex;
         }
 
         public static PlayerMaterialManager GetOrCreate() {

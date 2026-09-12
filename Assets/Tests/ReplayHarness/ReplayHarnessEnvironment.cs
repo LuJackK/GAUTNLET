@@ -19,6 +19,7 @@ namespace Fragsurf.ReplayHarness {
         private Vector3 _arenaOffset;
         private Vector3 _spawnOrigin;
         private bool _spawnGrounded;
+        private GameObject _networkManagerObject;
 
         public GameObject arenaRoot { get; private set; }
         public GameObject groundObject { get; private set; }
@@ -83,7 +84,7 @@ namespace Fragsurf.ReplayHarness {
             state.crouchLerp = 0f;
             state.uncrouchDown = false;
             state.laddersEnabled = !_trace.excludeLadders;
-            state.slidingEnabled = false;
+            state.slidingEnabled = _trace.enableSliding;
             state.angledLaddersEnabled = false;
             state.fallingVelocity = 0f;
             state.isDashing = false;
@@ -128,11 +129,16 @@ namespace Fragsurf.ReplayHarness {
         public void Dispose() {
             if (arenaRoot != null)
                 Object.Destroy(arenaRoot);
+            if (_networkManagerObject != null)
+                Object.Destroy(_networkManagerObject.GetComponent<FishNet.Managing.NetworkManager>().SpawnablePrefabs);
+            if (_networkManagerObject != null)
+                Object.Destroy(_networkManagerObject);
         }
 
         private void Build(Vector3 arenaOffset) {
             _arenaOffset = arenaOffset;
             arenaRoot = new GameObject("ReplayHarnessArena");
+            arenaRoot.SetActive(false);
 
             groundObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
             groundObject.name = "ReplayGround";
@@ -148,10 +154,12 @@ namespace Fragsurf.ReplayHarness {
             }
 
             ConfigureCharacterForTrace();
+            arenaRoot.SetActive(true);
         }
 
         private void BuildSyntheticCharacter(Vector3 arenaOffset) {
             characterRoot = new GameObject("ReplayCharacter");
+            characterRoot.SetActive(false);
             characterRoot.transform.SetParent(arenaRoot.transform, worldPositionStays: true);
             characterRoot.transform.position = arenaOffset + _trace.initialPosition;
             characterRoot.layer = 0;
@@ -174,15 +182,30 @@ namespace Fragsurf.ReplayHarness {
             character.movementConfig = CreateMovementConfig();
 
             rollback = characterRoot.AddComponent<RollbackManager>();
+            // Assign serialized-equivalent references before Awake builds the motor.
+            characterRoot.SetActive(true);
         }
 
         private void BuildFromRealPlayerPrefab(Vector3 arenaOffset) {
+            if (FishNet.InstanceFinder.NetworkManager == null) {
+                _networkManagerObject = new GameObject("ReplayNetworkManager");
+                _networkManagerObject.SetActive(false);
+#if UNITY_EDITOR
+                UnityEngine.TestTools.LogAssert.Expect(LogType.Error,
+                    new System.Text.RegularExpressions.Regex("^SpawnablePrefabs is null on ReplayNetworkManager\\."));
+#endif
+                var manager = _networkManagerObject.AddComponent<FishNet.Managing.NetworkManager>();
+                manager.SpawnablePrefabs = ScriptableObject.CreateInstance<FishNet.Managing.Object.SinglePrefabObjects>();
+                _networkManagerObject.SetActive(true);
+            }
             characterRoot = Object.Instantiate(_options.playerPrefab,
                                                arenaOffset + _trace.initialPosition,
                                                Quaternion.identity,
                                                arenaRoot.transform);
             characterRoot.name = "ReplayCharacter";
             characterRoot.layer = 0;
+
+            FishNet.Managing.Object.ManagedObjects.InitializePrefab(characterRoot.GetComponent<FishNet.Object.NetworkObject>(), 0);
 
             character = characterRoot.GetComponent<SurfCharacter>();
             rollback = characterRoot.GetComponent<RollbackManager>();
@@ -198,7 +221,7 @@ namespace Fragsurf.ReplayHarness {
                 return;
 
             character.crouchingEnabled = !_trace.excludeCrouch;
-            character.slidingEnabled = false;
+            character.slidingEnabled = _trace.enableSliding;
             character.laddersEnabled = !_trace.excludeLadders;
             character.supportAngledLadders = false;
             character.useStepOffset = false;

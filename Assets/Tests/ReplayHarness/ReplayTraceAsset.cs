@@ -50,6 +50,7 @@ namespace Fragsurf.ReplayHarness {
         public float initialYaw;
         public float initialPitch;
         public bool excludeCrouch = true;
+        public bool enableSliding = false;
         public bool excludeLadders = true;
         public bool excludeUnderwater = true;
         public List<ReplayTraceFrame> frames = new List<ReplayTraceFrame>();

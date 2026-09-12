@@ -1,133 +1,63 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace Fragsurf.TraceUtil {
     public class Tracer {
+        // Cast geometry comes from serialized shape data, never renderer/broadphase
+        // bounds. Distances describe travel of the unshrunk shape, in world metres.
+        // PhysX box sweeps can miss an initially touching floor with a sub-millimetre
+        // inset. One centimetre stays outside that contact tolerance.
+        private const float Skin = 0.01f;
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="collider"></param>
-        /// <param name="origin"></param>
-        /// <param name="end"></param>
-        /// <param name="layerMask"></param>
-        /// <returns></returns>
-        public static Trace TraceCollider (Collider collider, Vector3 origin, Vector3 end, int layerMask, float colliderScale = 1f) {
-
-            if (collider is BoxCollider) {
-
-                // Box collider trace
-                return TraceBox (origin, end, collider.bounds.extents, collider.contactOffset, layerMask, colliderScale);
-
-            } else if (collider is CapsuleCollider) {
-
-                // Capsule collider trace
-                var capc = (CapsuleCollider)collider;
-
-                Vector3 point1, point2;
-                Movement.SurfPhysics.GetCapsulePoints (capc, origin, out point1, out point2);
-
-                return TraceCapsule (point1, point2, capc.radius, origin, end, capc.contactOffset, layerMask, colliderScale);
-
+        public static Trace TraceCollider(Collider collider, Vector3 origin, Vector3 end, int layerMask, float colliderScale = 1f) {
+            Vector3 scale = collider.transform.lossyScale;
+            scale = new Vector3(Mathf.Abs(scale.x), Mathf.Abs(scale.y), Mathf.Abs(scale.z));
+            if (collider is BoxCollider box) {
+                Vector3 center = Vector3.Scale(box.center, scale);
+                return TraceBox(origin + center, end + center, Vector3.Scale(box.size * 0.5f, scale),
+                    collider.contactOffset, layerMask, colliderScale);
             }
-
-            throw new System.NotImplementedException ("Trace missing for collider: " + collider.GetType ());
-
+            if (collider is CapsuleCollider capsule) {
+                Movement.SurfPhysics.GetCapsulePoints(capsule, origin, out Vector3 p1, out Vector3 p2);
+                float radius = capsule.radius * Mathf.Max(scale.x, scale.z);
+                return TraceCapsule(p1, p2, radius, origin, end, collider.contactOffset, layerMask, colliderScale);
+            }
+            throw new System.NotImplementedException("Trace missing for collider: " + collider.GetType());
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public static Trace TraceCapsule (Vector3 point1, Vector3 point2, float radius, Vector3 start, Vector3 destination, float contactOffset, int layerMask, float colliderScale = 1f) {
-
-            var result = new Trace () {
-                startPos = start,
-                endPos = destination
-            };
-
-            var longSide = Mathf.Sqrt (contactOffset * contactOffset + contactOffset * contactOffset);
-            radius *= (1f - contactOffset);
-            var direction = (destination - start).normalized;
-            var maxDistance = Vector3.Distance (start, destination) + longSide;
-
-            RaycastHit hit;
-            if (Physics.CapsuleCast (
-                point1: point1 - Vector3.up * colliderScale * 0.5f,
-                point2: point2 + Vector3.up * colliderScale * 0.5f,
-                radius: radius * colliderScale,
-                direction: direction,
-                hitInfo: out hit,
-                maxDistance: maxDistance,
-                layerMask: layerMask,
-                queryTriggerInteraction: QueryTriggerInteraction.Ignore)) {
-
-                result.fraction = hit.distance / maxDistance;
-                result.hitCollider = hit.collider;
-                result.hitPoint = hit.point;
-                result.planeNormal = hit.normal;
-                result.distance = hit.distance;
-                
-                RaycastHit normalHit;
-                Ray normalRay = new Ray (hit.point - direction * 0.001f, direction);
-                if (hit.collider.Raycast (normalRay, out normalHit, 0.002f)) {
-                    
-                    result.planeNormal = normalHit.normal;
-
-                }
-                
-            } else
-                result.fraction = 1;
-
+        public static Trace TraceCapsule(Vector3 point1, Vector3 point2, float radius, Vector3 start,
+            Vector3 destination, float contactOffset, int layerMask, float colliderScale = 1f) {
+            Vector3 displacement = destination - start;
+            float distance = displacement.magnitude;
+            Trace result = new Trace { startPos = start, endPos = destination, fraction = 1f };
+            if (distance <= 0f) return result;
+            Vector3 center = (point1 + point2) * 0.5f;
+            point1 = center + (point1 - center) * colliderScale;
+            point2 = center + (point2 - center) * colliderScale;
+            if (Physics.CapsuleCast(point1, point2, Mathf.Max(Skin, radius * colliderScale - Skin),
+                displacement / distance, out RaycastHit hit, distance + Skin, layerMask, QueryTriggerInteraction.Ignore))
+                FillHit(ref result, hit, distance);
             return result;
-
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <returns></returns>
-        public static Trace TraceBox (Vector3 start, Vector3 destination, Vector3 extents, float contactOffset, int layerMask, float colliderScale = 1f) {
-
-            var result = new Trace () {
-                startPos = start,
-                endPos = destination
-            };
-
-            var longSide = Mathf.Sqrt (contactOffset * contactOffset + contactOffset * contactOffset);
-            var direction = (destination - start).normalized;
-            var maxDistance = Vector3.Distance (start, destination) + longSide;
-            extents *= (1f - contactOffset);
-
-            RaycastHit hit;
-            if (Physics.BoxCast (center: start,
-                halfExtents: extents * colliderScale,
-                direction: direction,
-                orientation: Quaternion.identity,
-                maxDistance: maxDistance,
-                hitInfo: out hit,
-                layerMask: layerMask,
-                queryTriggerInteraction: QueryTriggerInteraction.Ignore)) {
-
-                result.fraction = hit.distance / maxDistance;
-                result.hitCollider = hit.collider;
-                result.hitPoint = hit.point;
-                result.planeNormal = hit.normal;
-                result.distance = hit.distance;
-                
-                RaycastHit normalHit;
-                Ray normalRay = new Ray (hit.point - direction * 0.001f, direction);
-                if (hit.collider.Raycast (normalRay, out normalHit, 0.002f)) {
-                    
-                    result.planeNormal = normalHit.normal;
-
-                }
-                
-            } else
-                result.fraction = 1;
-
+        public static Trace TraceBox(Vector3 start, Vector3 destination, Vector3 extents, float contactOffset,
+            int layerMask, float colliderScale = 1f) {
+            Vector3 displacement = destination - start;
+            float distance = displacement.magnitude;
+            Trace result = new Trace { startPos = start, endPos = destination, fraction = 1f };
+            if (distance <= 0f) return result;
+            extents = Vector3.Max(Vector3.one * Skin, extents * colliderScale - Vector3.one * Skin);
+            if (Physics.BoxCast(start, extents, displacement / distance, out RaycastHit hit,
+                Quaternion.identity, distance + Skin, layerMask, QueryTriggerInteraction.Ignore))
+                FillHit(ref result, hit, distance);
             return result;
-
         }
 
+        private static void FillHit(ref Trace result, RaycastHit hit, float distance) {
+            result.hitCollider = hit.collider;
+            result.hitPoint = hit.point;
+            result.planeNormal = hit.normal;
+            result.distance = Mathf.Clamp(hit.distance - Skin, 0f, distance);
+            result.fraction = result.distance / distance;
+        }
     }
 }

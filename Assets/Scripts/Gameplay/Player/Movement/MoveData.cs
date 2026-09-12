@@ -110,13 +110,18 @@ namespace Fragsurf.Movement {
         public bool wishParry = false;
         public bool isParrying = false;
         public float parryTimer = 0f;
+        public float parryCooldownTimer = 0f;
         public int lastConsumedParryPressFrame = -1;
         // One-frame events for animation/VFX
         public bool dashStartedThisFrame = false;
         public bool doubleJumpedThisFrame = false;
         public bool meleeHitThisFrame = false;
+        public bool meleeMinChargeReachedThisFrame = false;
+        public bool meleeCooldownReadyThisFrame = false;
         public bool parryStartedThisFrame = false;
         public bool parrySuccessThisFrame = false;
+        public bool gotParriedThisFrame = false;
+        public bool parryCooldownReadyThisFrame = false;
 
         ///// Methods /////
 
