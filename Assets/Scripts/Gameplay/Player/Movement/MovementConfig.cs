@@ -10,6 +10,8 @@ namespace Fragsurf.Movement {
         public bool autoBhop = true;
         public float gravity = 20f;
         public float jumpForce = 6.5f;
+        [Tooltip("Seconds after losing walkable ground in which a fresh jump press uses the normal jump, without stamina cost. 0 disables coyote jumping. Keep identical on client and server.")]
+        [Min(0f)] public float coyoteTime = 0.1f;
         public int maxJumps = 2;
         public float doubleJumpForce = 8f;
         public float doubleJumpDelay = 0.2f;

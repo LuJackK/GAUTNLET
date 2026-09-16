@@ -15,7 +15,7 @@ The movement motor now uses one tick flow for grounded movement, air movement, s
 
 ## Simulation and collision contract
 
-SimulationTick binds its supplied MoveData snapshot before updating movement and restores collider geometry before queries. All persistent movement state remains in MoveData and the existing reconcile payload; no new wire fields were added.
+SimulationTick binds its supplied MoveData snapshot before updating movement and restores collider geometry before queries. All persistent movement state remains in MoveData and the reconcile payload. The coyote-jump experiment adds a synchronized grace timer and advances the explicit world movement wire format to version 2.
 
 Crouch input requests a stance rather than overwriting the actual collider stance. The motor retains the current crouch state when a ceiling prevents standing. Resizing keeps feet fixed. Collider stance disagreement now requires reconciliation, and the owner/server no longer strip different crouch fields.
 
@@ -53,6 +53,18 @@ Applies to ordinary airborne walking, jumping, falling, and air-dash steering. G
 These are base simulation settings: use identical values on client and server and keep them fixed during a replay session. No new per-tick state or network payload fields are needed. To revert the movement behavior immediately, set strength back to 0.
 
 Validated September 16, 2026 with Unity 6000.3.2f1 in an isolated project copy: **80 PlayMode tests passed, 0 failed**, including nine new air-strafing cases. Coverage includes exact zero-strength compatibility over 120 changing-input ticks, progressive restriction, coordinated/wrong-way camera turns, configurable caps, carried momentum, analog input, no-input coasting, and snapshot replay with a recreated controller. Results: `TestResults/air-strafe-final.xml`. Final movement feel still requires playtesting.
+
+### Experimental coyote jumping
+
+On `Assets/Prefabs/Player 1.prefab`, expand **SurfCharacter > Movement Config > Jumping and gravity > Coyote Time**. The default is **0.1 seconds**. Set **0** to disable the grace window. Use identical settings on client and server, fixed during replay; both peers must use the updated network payload.
+
+Walkable ground detected by the existing collision queries refreshes grace. After losing that ground, a fresh jump press during the remaining window uses `jumpForce`, preserves horizontal momentum, consumes no stamina, and leaves the usual double jump available after `doubleJumpDelay`. Ground snapping and slope limits still determine when ground is lost. The timer advances in simulation time in all modes, including melee hover; coyote time does not enable jumping during melee.
+
+Every successful jump consumes grace. Holding jump only retains the existing grounded auto-bhop behavior; airborne grace requires a new press. Spawning airborne grants no grace. After expiry, the existing stamina-based air-jump rules apply. Collision clipping, dash/jump ordering, and gravity still run normally; the character is not marked grounded during a coyote jump.
+
+The timer is cloned, reconciled, and serialized with movement state; respawn resets it. Pre-experiment Git checkpoint: `0a31ea3`. Setting Coyote Time to 0 disables the behavior without reverting code. Subjective feel, low ceilings, slopes, and live server/client latency should still be playtested.
+
+Validated September 16, 2026 with Unity 6000.3.2f1 in the isolated project copy: **92 PlayMode tests passed, 0 failed**. The 12 added cases cover box/capsule ledges, expiry and disabling, extended grace, held input and airborne spawn, takeoff consumption, ceiling clipping, melee timer progression, snapshot replay, and reconcile/respawn state. Existing world serialization tests verify the added field too. Results: `TestResults/coyote-jump-final.xml` (local, ignored by Git).
 
 ## Verification
 

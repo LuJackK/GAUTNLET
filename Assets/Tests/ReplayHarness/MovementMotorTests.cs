@@ -57,6 +57,145 @@ namespace Fragsurf.ReplayHarness {
 
         private void Tick() => _controller.ProcessMovement(_motor, _config, Dt);
 
+        private void WalkOffLedge() {
+            _objects[0].GetComponent<BoxCollider>().size = new Vector3(4f, 1f, 4f);
+            _config.friction = 0f;
+            _motor.moveData.origin.x = 1.8f;
+            _motor.moveData.velocity = Vector3.right * 12f;
+            Physics.SyncTransforms();
+            Tick();
+            Assert.IsTrue(_motor.moveData.grounded);
+            for (int i = 0; i < 10 && _motor.moveData.grounded; i++) Tick();
+            Assert.IsFalse(_motor.moveData.grounded);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void CoyoteJump_LedgePressUsesNormalJumpAndKeepsDoubleJump(bool capsule) {
+            if (capsule) {
+                GameObject player = _motor.collider.gameObject;
+                Object.DestroyImmediate(_motor.collider);
+                var shape = player.AddComponent<CapsuleCollider>();
+                shape.height = 2f;
+                shape.radius = 0.5f;
+                shape.isTrigger = true;
+                _motor.collider = shape;
+            }
+            WalkOffLedge();
+            MoveData s = _motor.moveData;
+            s.wishJumpDown = true;
+            Tick();
+            Assert.AreEqual(_config.jumpForce - _config.gravity * Dt, s.velocity.y, 0.0001f);
+            Assert.AreEqual(12f, s.velocity.x, 0.0001f);
+            Assert.AreEqual(1, s.jumpCount);
+            Assert.AreEqual(_config.maxStamina, s.stamina);
+            Assert.Zero(s.coyoteTimer);
+            Assert.IsFalse(s.doubleJumpedThisFrame);
+            s.wishJumpDown = false;
+            for (int i = 0; i < 13; i++) Tick();
+            s.wishJumpDown = true;
+            Tick();
+            Assert.AreEqual(2, s.jumpCount);
+            Assert.IsTrue(s.doubleJumpedThisFrame);
+            Assert.AreEqual(_config.maxStamina - _config.doubleJumpCost, s.stamina);
+        }
+
+        [TestCase(0f)]
+        [TestCase(0.05f)]
+        [TestCase(0.2f)]
+        public void CoyoteJump_ExpiresAtConfiguredDuration(float grace) {
+            _config.coyoteTime = grace;
+            _config.maxJumps = 1;
+            WalkOffLedge();
+            for (int i = 0; i < Mathf.CeilToInt(grace / Dt) + 1; i++) Tick();
+            _motor.moveData.wishJumpDown = true;
+            Tick();
+            Assert.Zero(_motor.moveData.coyoteTimer);
+            Assert.Zero(_motor.moveData.jumpCount);
+            Assert.Less(_motor.moveData.velocity.y, 0f);
+        }
+
+        [Test]
+        public void CoyoteJump_HeldInputAndAirSpawnDoNotGrantFreeJump() {
+            WalkOffLedge();
+            _motor.moveData.wishJump = true;
+            Tick();
+            Assert.Zero(_motor.moveData.jumpCount);
+            _motor.moveData = new MoveData { origin = Vector3.up * 10f, wishJumpDown = true };
+            _config.maxJumps = 1;
+            Tick();
+            Assert.Zero(_motor.moveData.jumpCount);
+            Assert.Zero(_motor.moveData.coyoteTimer);
+        }
+
+        [Test]
+        public void CoyoteJump_NormalTakeoffConsumesGrace() {
+            _config.maxJumps = 1;
+            _motor.moveData.wishJump = _motor.moveData.wishJumpDown = true;
+            Tick();
+            Assert.Zero(_motor.moveData.coyoteTimer);
+            float takeoff = _motor.moveData.velocity.y;
+            Tick();
+            Assert.AreEqual(takeoff - _config.gravity * Dt, _motor.moveData.velocity.y, 0.0001f);
+            Assert.Zero(_motor.moveData.coyoteTimer);
+        }
+
+        [Test]
+        public void CoyoteJump_LongerSettingAllowsLaterPress() {
+            _config.coyoteTime = 0.25f;
+            _config.maxJumps = 1;
+            WalkOffLedge();
+            for (int i = 0; i < 8; i++) Tick();
+            _motor.moveData.wishJumpDown = true;
+            Tick();
+            Assert.AreEqual(1, _motor.moveData.jumpCount);
+            Assert.Greater(_motor.moveData.velocity.y, 0f);
+        }
+
+        [Test]
+        public void CoyoteJump_CeilingClipsAsNormalAndDoesNotRearmGrace() {
+            _config.maxJumps = 1;
+            WalkOffLedge();
+            Box("Ceiling", new Vector3(5f, 3f, 0f), new Vector3(10f, 1f, 4f));
+            Physics.SyncTransforms();
+            _motor.moveData.wishJumpDown = true;
+            Tick();
+            Assert.Greater(_motor.moveData.velocity.y, 0f);
+            for (int i = 0; i < 10; i++) {
+                Tick();
+                Assert.LessOrEqual(_motor.moveData.origin.y, 1.51f);
+                Assert.Zero(_motor.moveData.coyoteTimer);
+            }
+            Assert.LessOrEqual(_motor.moveData.velocity.y, 0f);
+            Assert.AreEqual(1, _motor.moveData.jumpCount);
+        }
+
+        [Test]
+        public void CoyoteJump_MeleeHoverDoesNotFreezeGrace() {
+            WalkOffLedge();
+            _motor.moveData.moveType = MoveType.HeavyMelee;
+            _motor.moveData.meleeState = MoveData.MeleeState.Charging;
+            for (int i = 0; i < 12; i++) Tick();
+            Assert.Zero(_motor.moveData.coyoteTimer);
+        }
+
+        [Test]
+        public void CoyoteJump_RestoredSnapshotReplaysWithNewController() {
+            WalkOffLedge();
+            _motor.moveData.wishJumpDown = true;
+            MoveData snapshot = _motor.moveData.Clone();
+            Tick();
+            MoveData expected = _motor.moveData.Clone();
+            _motor.moveData = snapshot;
+            _controller = new SurfController();
+            Tick();
+            Assert.AreEqual(expected.origin, _motor.moveData.origin);
+            Assert.AreEqual(expected.velocity, _motor.moveData.velocity);
+            Assert.AreEqual(expected.coyoteTimer, _motor.moveData.coyoteTimer);
+            Assert.AreEqual(expected.jumpCount, _motor.moveData.jumpCount);
+            Assert.AreEqual(expected.stamina, _motor.moveData.stamina);
+        }
+
         [Test]
         public void FastSlideJump_LeavesSlideAndRetainsMomentum() {
             MoveData s = _motor.moveData;

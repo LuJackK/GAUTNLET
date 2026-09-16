@@ -290,6 +290,17 @@ namespace Fragsurf.ReplayHarness {
         }
 
         [Test]
+        public void CoyoteTimer_ReconcileWireRoundTripAndRespawn() {
+            _character.moveData.coyoteTimer = 0.075f;
+            NetworkedCharacterReconcileData packet = WireRoundTrip(_service.BuildReconcileData(0));
+            packet.SetTick(0);
+            _character.moveData.coyoteTimer = 0f;
+            _service.ApplyReconcile(packet, Dt);
+            Assert.AreEqual(0.075f, _character.moveData.coyoteTimer);
+            Assert.Zero(_character.BuildRespawnState(Vector3.up * 10f, 0f, 0f).coyoteTimer);
+        }
+
+        [Test]
         public void OldEpochReconcileAndItsReplayCannotMoveNewLife() {
             Advance(1, 4);
             NetworkedCharacterReconcileData old = _service.BuildReconcileData(4);

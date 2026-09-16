@@ -115,6 +115,7 @@ namespace Fragsurf.Movement {
                 CanAirDash = BoolToByte(state == null || state.canAirDash),
                 JumpCount = (state != null) ? state.jumpCount : 0,
                 JumpTimer = (state != null) ? state.jumpTimer : 0f,
+                CoyoteTimer = (state != null) ? state.coyoteTimer : 0f,
                 Grounded = BoolToByte(state != null && state.grounded),
                 GroundedTemp = BoolToByte(state != null && state.groundedTemp),
                 Jumping = BoolToByte(state != null && state.jumping),
@@ -278,6 +279,7 @@ namespace Fragsurf.Movement {
             state.canAirDash = ByteToBool(reconcileData.CanAirDash);
             state.jumpCount = reconcileData.JumpCount;
             state.jumpTimer = reconcileData.JumpTimer;
+            state.coyoteTimer = reconcileData.CoyoteTimer;
             state.grounded = ByteToBool(reconcileData.Grounded);
             state.groundedTemp = ByteToBool(reconcileData.GroundedTemp);
             state.jumping = ByteToBool(reconcileData.Jumping);

@@ -30,6 +30,10 @@ namespace Fragsurf.Movement {
             s.jumpTimer += dt;
 
             Vector3 normal = FindGround(surfer, config);
+            // Only actual walkable ground arms grace. Keep it in rollback state,
+            // and advance it in every movement mode, including melee hover.
+            s.coyoteTimer = s.grounded ? Mathf.Max(0f, config.coyoteTime)
+                : Mathf.Max(0f, Mathf.Min(s.coyoteTimer, Mathf.Max(0f, config.coyoteTime)) - dt);
             Quaternion yaw = Quaternion.Euler(0f, s.viewAngles.y, 0f);
             Vector3 wish = Vector3.ClampMagnitude(yaw * new Vector3(s.horizontalAxis, 0f, s.verticalAxis), 1f);
             bool melee = s.moveType == MoveType.HeavyMelee;
@@ -37,10 +41,12 @@ namespace Fragsurf.Movement {
                 // Dash and jump compose in the same tick, before ground friction.
                 TryDash(s, config, wish, yaw * Vector3.forward);
                 bool groundJump = s.grounded && (config.autoBhop ? s.wishJump : s.wishJumpDown);
-                if (groundJump) {
+                bool coyoteJump = !s.grounded && s.coyoteTimer > 0f && s.jumpCount == 0 && s.wishJumpDown;
+                if (groundJump || coyoteJump) {
                     LeaveSlide(s);
                     s.velocity.y = config.jumpForce;
                     s.jumpCount = 1;
+                    s.coyoteTimer = 0f;
                     s.jumpTimer = 0f;
                     s.jumping = true;
                     s.grounded = false;
@@ -52,6 +58,7 @@ namespace Fragsurf.Movement {
                     LeaveSlide(s);
                     s.velocity.y = config.doubleJumpForce;
                     s.jumpCount = Mathf.Max(1, s.jumpCount) + 1;
+                    s.coyoteTimer = 0f;
                     s.jumpTimer = 0f;
                     s.jumping = true;
                     s.isDashing = false;

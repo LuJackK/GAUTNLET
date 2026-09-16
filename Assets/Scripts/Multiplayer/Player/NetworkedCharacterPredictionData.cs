@@ -45,6 +45,7 @@ namespace Fragsurf.Movement {
         public byte CanAirDash;
         public int JumpCount;
         public float JumpTimer;
+        public float CoyoteTimer;
         public byte Grounded;
         public byte GroundedTemp;
         public byte Jumping;
@@ -112,6 +113,7 @@ namespace Fragsurf.Movement {
             CanAirDash = 0;
             JumpCount = 0;
             JumpTimer = 0f;
+            CoyoteTimer = 0f;
             Grounded = 0;
             GroundedTemp = 0;
             Jumping = 0;

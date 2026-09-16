@@ -7,7 +7,7 @@ namespace GAUNTLET.Rollback {
     // Explicit wire contract. The manifest test rejects newly added MoveData
     // fields until they are included here or deliberately classified as bindings.
     public static class WorldMovementSerializer {
-        public const ushort Version = 1;
+        public const ushort Version = 2;
         public static readonly string[] Fields = {
             "frame",
             "lastInput",
@@ -45,6 +45,7 @@ namespace GAUNTLET.Rollback {
             "lastConsumedDashPressFrame",
             "jumpCount",
             "jumpTimer",
+            "coyoteTimer",
             "slideRequested",
             "sliding",
             "wasSliding",
@@ -137,6 +138,7 @@ namespace GAUNTLET.Rollback {
             writer.Write(value.lastConsumedDashPressFrame);
             writer.Write(value.jumpCount);
             writer.Write(value.jumpTimer);
+            writer.Write(value.coyoteTimer);
             writer.Write(value.slideRequested);
             writer.Write(value.sliding);
             writer.Write(value.wasSliding);
@@ -230,6 +232,7 @@ namespace GAUNTLET.Rollback {
                 lastConsumedDashPressFrame = reader.Read<int>(),
                 jumpCount = reader.Read<int>(),
                 jumpTimer = reader.Read<float>(),
+                coyoteTimer = reader.Read<float>(),
                 slideRequested = reader.Read<bool>(),
                 sliding = reader.Read<bool>(),
                 wasSliding = reader.Read<bool>(),

@@ -62,6 +62,7 @@ namespace Fragsurf.Movement {
         public int lastConsumedDashPressFrame = -1;
         public int jumpCount = 0;
         public float jumpTimer = 0f;
+        public float coyoteTimer = 0f;
 
         // Sliding
         public bool slideRequested = false;
