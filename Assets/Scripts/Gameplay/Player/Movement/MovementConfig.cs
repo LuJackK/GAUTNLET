@@ -52,6 +52,10 @@ namespace Fragsurf.Movement {
         [HideInInspector] public float airFriction = 0.4f;
         [Tooltip("Lateral steering acceleration in metres/second squared. Preserves carried air speed.")]
         public float airControlAcceleration = 18f;
+        [Tooltip("0 keeps current air movement exactly. 1 removes direct steering and uses Source-style capped directional acceleration. Higher values make carried momentum harder to redirect. Applies to normal air movement and air dashes, not melee.")]
+        [Range(0f, 1f)] public float sourceAirStrafeStrength = 0f;
+        [Tooltip("At full Source strafe strength, maximum speed along the input direction that air acceleration can build (m/s). Does not clamp carried speed. Lower values require more deliberate camera/strafe coordination.")]
+        [Min(0f)] public float sourceAirSpeedCap = 0.4f;
 
         [Header ("Ground movement")]
         public float walkSpeed = 7f;

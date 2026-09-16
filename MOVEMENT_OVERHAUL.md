@@ -39,6 +39,21 @@ New fields have defaults that apply without rewriting the player prefab:
 
 Existing walk speed, ground acceleration/friction, gravity, jump force, dash speed/duration, stamina, and melee timing remain configurable. airAcceleration now specifies added air speed per second. maxVelocity remains the global horizontal speed limit. Legacy swim, air-cap, slide-multiplier, and charge-retention fields are hidden and ignored for compatibility with serialized assets.
 
+### Adjustable Source-style air strafing
+
+On the player prefab's SurfCharacter component, expand Movement Config > Air movement:
+
+- `sourceAirStrafeStrength` (0–1, default **0**): 0 runs the original air movement operations unchanged. Raising it reduces direct momentum steering and lowers the directional acceleration target. At 1, direct air steering is disabled and acceleration uses a Source-style velocity projection cap. Try 0.5 for a middle setting and 1 for the strongest directional restriction.
+- `sourceAirSpeedCap` (m/s, default **0.4**): the full-strength cap on speed built along the requested input direction. This is not a cap on carried horizontal speed. Holding a fixed strafe direction reaches this cap; coordinated camera rotation changes the direction in which acceleration is available. Lower caps restrict ordinary sideways corrections more strongly.
+
+Intermediate strengths interpolate the uncapped input speed toward the capped input speed and scale direct steering by `1 - strength`. `airAcceleration` retains its existing m/s² units; this is Source-style directional acceleration, not an exact reproduction of Valve's acceleration coefficients. The new fields do not reuse the ignored legacy `airCap`/`clampAirSpeed` fields. Existing serialized assets retain their current behavior because strength defaults to zero.
+
+Applies to ordinary airborne walking, jumping, falling, and air-dash steering. Ground movement, slide steering, and melee charge/recovery/lunge behavior are unchanged. No takeoff heading lock or general air drag is added. Existing `maxVelocity` and collision responses still apply.
+
+These are base simulation settings: use identical values on client and server and keep them fixed during a replay session. No new per-tick state or network payload fields are needed. To revert the movement behavior immediately, set strength back to 0.
+
+Validated September 16, 2026 with Unity 6000.3.2f1 in an isolated project copy: **80 PlayMode tests passed, 0 failed**, including nine new air-strafing cases. Coverage includes exact zero-strength compatibility over 120 changing-input ticks, progressive restriction, coordinated/wrong-way camera turns, configurable caps, carried momentum, analog input, no-input coasting, and snapshot replay with a recreated controller. Results: `TestResults/air-strafe-final.xml`. Final movement feel still requires playtesting.
+
 ## Verification
 
 Verified with Unity 6000.3.2f1 on September 12, 2026: **37 PlayMode tests passed, 0 failed**. Results: TestResults/movement-overhaul.xml. The changed code and tests also pass git diff --check.

@@ -89,8 +89,7 @@ namespace Fragsurf.Movement {
                 } else {
                     LeaveSlide(s);
                     Vector3 planar = Planar(s.velocity);
-                    planar = Steer(planar, wish, config.airControlAcceleration * dt);
-                    Accelerate(ref planar, wish, config.maxSpeed, config.airAcceleration * dt);
+                    planar = AirMove(planar, wish, config, dt);
                     s.velocity.x = planar.x;
                     s.velocity.z = planar.z;
                 }
@@ -132,6 +131,31 @@ namespace Fragsurf.Movement {
         }
 
         private static Vector3 Planar(Vector3 v) => new Vector3(v.x, 0f, v.z);
+
+        private static Vector3 AirMove(Vector3 velocity, Vector3 wish, MovementConfig config, float dt) {
+            float strength = Mathf.Clamp01(config.sourceAirStrafeStrength);
+            // Keep the original operations verbatim at zero for existing assets/replays.
+            if (strength <= 0f) {
+                velocity = Steer(velocity, wish, config.airControlAcceleration * dt);
+                Accelerate(ref velocity, wish, config.maxSpeed, config.airAcceleration * dt);
+                return velocity;
+            }
+
+            if (strength < 1f)
+                velocity = Steer(velocity, wish, config.airControlAcceleration * (1f - strength) * dt);
+            float magnitude = wish.magnitude;
+            if (magnitude < 0.0001f) return velocity;
+            Vector3 direction = wish / magnitude;
+            float wishSpeed = Mathf.Max(0f, config.maxSpeed) * magnitude;
+            float cappedWishSpeed = Mathf.Min(wishSpeed, Mathf.Max(0f, config.sourceAirSpeedCap));
+            float targetSpeed = Mathf.Lerp(wishSpeed, cappedWishSpeed, strength);
+            float missing = targetSpeed - Vector3.Dot(velocity, direction);
+            // Source-style projection cap, with this project's existing m/s² tuning.
+            // Never truncate momentum already carried along or across the input direction.
+            if (missing > 0f)
+                velocity += direction * Mathf.Min(missing, Mathf.Max(0f, config.airAcceleration) * dt * magnitude);
+            return velocity;
+        }
 
         private static Vector3 Steer(Vector3 velocity, Vector3 wish, float amount) {
             float speed = velocity.magnitude;

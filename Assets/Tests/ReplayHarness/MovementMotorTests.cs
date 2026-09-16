@@ -127,6 +127,114 @@ namespace Fragsurf.ReplayHarness {
             Assert.Zero(_motor.moveData.jumpCount);
         }
 
+        private Vector3 SimulateAir(float strength, int ticks, float yawPerTick = 0f, float axis = 1f) {
+            _config.sourceAirStrafeStrength = strength;
+            _config.gravity = 0f;
+            _motor.moveData = new MoveData {
+                origin = Vector3.up * 100f, grounded = false,
+                velocity = Vector3.forward * 25f, horizontalAxis = axis
+            };
+            for (int i = 0; i < ticks; i++) {
+                _motor.moveData.viewAngles = new Vector3(0f, yawPerTick * i, 0f);
+                Tick();
+            }
+            return _motor.moveData.velocity;
+        }
+
+        [Test]
+        public void SourceStrafe_ZeroMatchesOriginalAirMovementExactly() {
+            Assert.Zero(_config.sourceAirStrafeStrength);
+            // Frozen pre-feature air algorithm, replayed across changing look/input.
+            Vector3 expected = Vector3.forward * 25f;
+            _config.gravity = 0f;
+            _motor.moveData.origin = Vector3.up * 100f;
+            _motor.moveData.grounded = false;
+            _motor.moveData.velocity = expected;
+            for (int i = 0; i < 120; i++) {
+                float horizontal = i % 3 == 0 ? -0.5f : 1f;
+                float vertical = i % 4 == 0 ? 0.3f : 0f;
+                float yaw = i * 2f;
+                Vector3 wish = Vector3.ClampMagnitude(Quaternion.Euler(0f, yaw, 0f) *
+                    new Vector3(horizontal, 0f, vertical), 1f);
+                float speed = expected.magnitude;
+                float heading = Mathf.Atan2(expected.x, expected.z) * Mathf.Rad2Deg;
+                float target = Mathf.Atan2(wish.x, wish.z) * Mathf.Rad2Deg;
+                float angle = Mathf.MoveTowardsAngle(heading, target,
+                    (_config.airControlAcceleration * Dt) * wish.magnitude / Mathf.Max(speed, 1f) * Mathf.Rad2Deg) * Mathf.Deg2Rad;
+                expected = new Vector3(Mathf.Sin(angle) * speed, 0f, Mathf.Cos(angle) * speed);
+                Vector3 direction = wish / wish.magnitude;
+                float missing = _config.maxSpeed * wish.magnitude - Vector3.Dot(expected, direction);
+                if (missing > 0f)
+                    expected += direction * Mathf.Min(missing, (_config.airAcceleration * Dt) * wish.magnitude);
+                expected = Vector3.ClampMagnitude(expected, _config.maxVelocity);
+                _motor.moveData.horizontalAxis = horizontal;
+                _motor.moveData.verticalAxis = vertical;
+                _motor.moveData.viewAngles = new Vector3(0f, yaw, 0f);
+                Tick();
+                Assert.AreEqual(expected, _motor.moveData.velocity, "Tick " + i);
+            }
+        }
+
+        [Test]
+        public void SourceStrafe_StrengthProgressivelyReducesHeldSidewaysTurning() {
+            Vector3 current = SimulateAir(0f, 60);
+            Vector3 middle = SimulateAir(0.5f, 60);
+            Vector3 source = SimulateAir(1f, 60);
+            Assert.Greater(current.x, middle.x);
+            Assert.Greater(middle.x, source.x);
+            Assert.AreEqual(_config.sourceAirSpeedCap, source.x, 0.00001f);
+            Assert.AreEqual(25f, source.z, 0.00001f);
+        }
+
+        [Test]
+        public void SourceStrafe_CameraTurnAllowsFurtherAccelerationAfterDirectionalCap() {
+            Vector3 held = SimulateAir(1f, 60);
+            // With right strafe held, turn right so the wish direction stays
+            // just behind perpendicular to the carried forward velocity.
+            Vector3 turning = SimulateAir(1f, 60, 0.4f);
+            Assert.Greater(turning.x, held.x + 1f);
+            Vector3 wrongWay = SimulateAir(1f, 60, -0.4f);
+            Assert.LessOrEqual(wrongWay.x, held.x);
+        }
+
+        [TestCase(0f)]
+        [TestCase(0.5f)]
+        [TestCase(1f)]
+        public void SourceStrafe_NoInputPreservesMomentum(float strength) {
+            Assert.AreEqual(Vector3.forward * 25f, SimulateAir(strength, 60, axis: 0f));
+        }
+
+        [Test]
+        public void SourceStrafe_CapIsConfigurableAndDoesNotTruncateCarriedSpeed() {
+            _config.sourceAirSpeedCap = 1f;
+            Assert.AreEqual(1f, SimulateAir(1f, 60).x, 0.00001f);
+            _motor.moveData.horizontalAxis = 0f;
+            _motor.moveData.verticalAxis = 1f;
+            Tick();
+            Assert.AreEqual(25f, _motor.moveData.velocity.z, 0.00001f);
+        }
+
+        [Test]
+        public void SourceStrafe_AnalogInputUsesCapAfterWishSpeedScaling() {
+            Assert.AreEqual(_config.sourceAirSpeedCap, SimulateAir(1f, 60, axis: 0.5f).x, 0.00001f);
+        }
+
+        [Test]
+        public void SourceStrafe_SnapshotReplayWithRecreatedControllerMatches() {
+            SimulateAir(0.75f, 15);
+            MoveData snapshot = _motor.moveData.Clone();
+            for (int i = 0; i < 30; i++) Tick();
+            Vector3 expectedVelocity = _motor.moveData.velocity;
+            Vector3 expectedOrigin = _motor.moveData.origin;
+            _motor.moveData = snapshot;
+            for (int i = 0; i < 30; i++) {
+                _controller = new SurfController();
+                Tick();
+            }
+            Assert.AreEqual(expectedVelocity, _motor.moveData.velocity);
+            Assert.AreEqual(expectedOrigin, _motor.moveData.origin);
+        }
+
         [Test]
         public void LandingWhileHoldingCrouch_ReentersSlideWithAirMomentum() {
             MoveData s = _motor.moveData;
