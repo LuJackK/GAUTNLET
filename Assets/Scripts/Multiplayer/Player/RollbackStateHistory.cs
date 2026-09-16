@@ -1,7 +1,7 @@
 namespace Fragsurf.Movement {
 
     internal sealed class RollbackStateHistory {
-        private const int BufferSize = 256;
+        internal const int BufferSize = 256;
 
         private readonly MoveData[] _states = new MoveData[BufferSize];
         private readonly int[] _ticks = new int[BufferSize];

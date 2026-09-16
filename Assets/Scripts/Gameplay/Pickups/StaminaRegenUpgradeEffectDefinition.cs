@@ -16,24 +16,24 @@ namespace GAUNTLET.Gameplay.Pickups
                 return false;
 
             SurfCharacter character = context.Target.SurfCharacter;
-            if (character == null || character.movementConfig == null)
+            if (character == null || character.movementConfig == null || character.moveData == null)
                 return false;
 
             if (maxRegenRate <= 0f || consumeWhenAtCap)
                 return true;
 
-            return character.movementConfig.staminaRegenRate < maxRegenRate;
+            return character.StaminaRegenRate < maxRegenRate;
         }
 
         protected override void Apply(PickupEffectContext context)
         {
-            MovementConfig config = context.Target.SurfCharacter.movementConfig;
-            float nextRate = config.staminaRegenRate + Mathf.Max(0f, regenRateIncrease);
+            SurfCharacter character = context.Target.SurfCharacter;
+            float nextRate = character.StaminaRegenRate + Mathf.Max(0f, regenRateIncrease);
 
             if (maxRegenRate > 0f)
                 nextRate = Mathf.Min(nextRate, maxRegenRate);
 
-            config.staminaRegenRate = nextRate;
+            character.moveData.staminaRegenBonus = nextRate - character.movementConfig.staminaRegenRate;
         }
     }
 }

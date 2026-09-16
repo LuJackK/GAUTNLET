@@ -17,28 +17,11 @@ namespace Fragsurf.Movement {
             _character.LoadState(correctedState);
         }
 
-        public void ReplayRange(int startTick,
-                                int endTick,
-                                float deltaTime,
-                                Func<int, InputFrame> replayInputProvider,
-                                Action<int, MoveData> recordPredictedState) {
-            if (_character == null || startTick > endTick)
-                return;
-
-            for (int tick = startTick; tick <= endTick; tick++) {
-                if (replayInputProvider == null) {
-                    Debug.LogError($"[RollbackReplayEngine] Missing replay input provider for tick {tick}. Replay aborted.", _character);
-                    return;
-                }
-
-                InputFrame input = replayInputProvider(tick);
-                if (!input.IsValid) {
-                    Debug.LogError($"[RollbackReplayEngine] Missing canonical replay input for tick {tick}. Replay aborted.", _character);
-                    return;
-                }
-
+        // Inputs have already been materialized and validated by RollbackManager.
+        public void Replay(InputFrame[] inputs, float deltaTime, Action<int, MoveData> recordPredictedState) {
+            foreach (InputFrame input in inputs) {
                 _character.moveData = _character.SimulationTick(_character.moveData, input, deltaTime, false);
-                recordPredictedState?.Invoke(tick, _character.moveData);
+                recordPredictedState?.Invoke(input.frame, _character.moveData);
             }
         }
     }

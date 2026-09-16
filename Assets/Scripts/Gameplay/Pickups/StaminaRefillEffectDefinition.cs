@@ -23,7 +23,7 @@ namespace GAUNTLET.Gameplay.Pickups
             if (consumeAtFullStamina)
                 return true;
 
-            float maxStamina = Mathf.Max(0f, character.movementConfig.maxStamina);
+            float maxStamina = character.MaxStamina;
             return character.moveData.stamina < maxStamina;
         }
 
@@ -31,7 +31,7 @@ namespace GAUNTLET.Gameplay.Pickups
         {
             SurfCharacter character = context.Target.SurfCharacter;
             MoveData moveData = character.moveData;
-            float maxStamina = Mathf.Max(0f, character.movementConfig.maxStamina);
+            float maxStamina = character.MaxStamina;
 
             if (refillToMax)
                 moveData.stamina = maxStamina;

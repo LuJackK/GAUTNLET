@@ -96,6 +96,8 @@ namespace Fragsurf.Movement {
         public MoveType moveType { get { return _moveData.moveType; } }
         public MovementConfig moveConfig { get { return movementConfig; } }
         public MoveData moveData { get { return _moveData; } set { _moveData = value; } }
+        public float MaxStamina => movementConfig != null ? movementConfig.GetMaxStamina(_moveData) : 3f;
+        public float StaminaRegenRate => movementConfig != null ? movementConfig.GetStaminaRegenRate(_moveData) : 1f;
         public new Collider collider { get { return _collider; } }
 
         public GameObject groundObject {
@@ -512,7 +514,9 @@ namespace Fragsurf.Movement {
                 surfaceFriction = 1f,
                 gravityFactor = 1f,
                 walkFactor = 1f,
-                stamina = (movementConfig != null) ? movementConfig.maxStamina : 3f,
+                stamina = MaxStamina,
+                maxStaminaBonus = _moveData != null ? _moveData.maxStaminaBonus : 0f,
+                staminaRegenBonus = _moveData != null ? _moveData.staminaRegenBonus : 0f,
                 canAirDash = true,
                 slopeLimit = (movementConfig != null) ? movementConfig.slopeLimit : 45f,
                 rigidbodyPushForce = rigidbodyPushForce,
@@ -531,7 +535,10 @@ namespace Fragsurf.Movement {
 
         public void LoadState(MoveData savedState) {
             _moveData = savedState.Clone();
-            _prevState = savedState.Clone(); // Synchronize previous state to prevent jumps after load
+            // Object bindings belong to this instance, never the source of a snapshot.
+            _moveData.playerTransform = transform;
+            _moveData.viewTransform = viewTransform;
+            _prevState = _moveData.Clone();
             // Snap transform immediately — renderer will interpolate next Update()
             SyncRuntimeStateFromMoveData();
             if (rb != null) {
@@ -566,10 +573,7 @@ namespace Fragsurf.Movement {
             if (_collider == null || _moveData == null)
                 return;
 
-            float crouchingHeight = Mathf.Clamp(_moveData.crouchingHeight, 0.01f, 1f);
-            float targetHeight = _moveData.crouching
-                ? _moveData.defaultHeight * crouchingHeight
-                : _moveData.defaultHeight;
+            float targetHeight = SurfController.GetColliderHeight(_moveData, _collider, _moveData.crouching);
 
             if (_collider is BoxCollider boxCollider) {
                 Vector3 size = boxCollider.size;
@@ -851,6 +855,7 @@ namespace Fragsurf.Movement {
         }
 
         private void ApplyInputToState (ref MoveData state, InputFrame input) {
+            state.lastInput = input;
             
             state.verticalAxis   = input.stickY / 127f;
             state.horizontalAxis = input.stickX / 127f;

@@ -39,6 +39,8 @@ namespace Fragsurf.Movement {
         private readonly SyncVar<int> _playerMaterialJoinIndex = new(-1);
         private InputFrame _lastReplicatedInput;
         private bool _hasLastReplicatedInput;
+        private uint _movementEpoch;
+        internal uint MovementEpoch => _movementEpoch;
         private bool _hurtboxSubscribed;
         private bool _respawnRoutineRunning;
         private PlayerHealthBillboard _healthBillboard;
@@ -178,6 +180,8 @@ namespace Fragsurf.Movement {
 
         public override void OnStartNetwork() {
             base.OnStartNetwork();
+            _movementEpoch = 0;
+            _predictionReconcileService?.ResetSession();
 
             if (NetworkObject != null && !NetworkObject.EnablePrediction) {
                 Debug.LogError("[NetworkedCharacter] FishNet prediction is disabled on this NetworkObject. This controller depends on Replicate/Reconcile for visible multiplayer movement, so remote players will remain frozen unless prediction is enabled or another sync path is added.", this);
@@ -185,7 +189,6 @@ namespace Fragsurf.Movement {
 
             _hasLastReplicatedInput = false;
             _lastReplicatedInput = default;
-            _predictionReconcileService?.ResetSpectatorPresentationBuffer();
             _ownershipGate.OnNetworkStart();
             ApplyPlayerMaterialJoinIndex(_playerMaterialJoinIndex.Value);
 
@@ -257,7 +260,7 @@ namespace Fragsurf.Movement {
         }
 
         private NetworkedCharacterReplicateData CreateReplicateData() {
-            int tick = (TimeManager != null) ? (int)TimeManager.Tick : Mathf.Max(0, CurrentMoveFrame + 1);
+            int tick = (TimeManager != null) ? (int)TimeManager.LocalTick : Mathf.Max(0, CurrentMoveFrame + 1);
             InputFrame input;
             if (DebugHasLocalAuthority && _inputCollector != null) {
                 input = _inputCollector.GatherInput(tick);
@@ -278,7 +281,7 @@ namespace Fragsurf.Movement {
                 input.lookPitch100 = (short)Mathf.RoundToInt(NormalizeSignedAngle(pitch) * 100f);
             }
 
-            return new NetworkedCharacterReplicateData(input);
+            return new NetworkedCharacterReplicateData(input, _movementEpoch);
         }
 
         [Replicate]
@@ -318,8 +321,9 @@ namespace Fragsurf.Movement {
             if (!IsServerInitialized)
                 return;
 
-            ApplyAuthoritativeSpawnPoseLocal(position, rotation);
-            ApplyAuthoritativeSpawnPoseObserversRpc(position, rotation);
+            uint epoch = _movementEpoch + 1;
+            ApplyAuthoritativeSpawnPoseLocal(position, rotation, epoch);
+            ApplyAuthoritativeSpawnPoseObserversRpc(position, rotation, epoch);
         }
 
         [Server]
@@ -332,8 +336,8 @@ namespace Fragsurf.Movement {
         }
 
         [ObserversRpc]
-        private void ApplyAuthoritativeSpawnPoseObserversRpc(Vector3 position, Quaternion rotation) {
-            ApplyAuthoritativeSpawnPoseLocal(position, rotation);
+        private void ApplyAuthoritativeSpawnPoseObserversRpc(Vector3 position, Quaternion rotation, uint epoch) {
+            ApplyAuthoritativeSpawnPoseLocal(position, rotation, epoch);
         }
 
         internal void RefreshOwnershipState() {
@@ -595,7 +599,33 @@ namespace Fragsurf.Movement {
             _respawnRoutineRunning = false;
         }
 
-        private void ApplyAuthoritativeSpawnPoseLocal(Vector3 position, Quaternion rotation) {
+        internal bool AcceptMovementEpoch(uint epoch) {
+            if (epoch < _movementEpoch)
+                return false;
+            if (epoch > _movementEpoch) {
+                _movementEpoch = epoch;
+                _hasLastReplicatedInput = false;
+                _lastReplicatedInput = InputFrame.Empty();
+                _predictionReconcileService?.ResetSpectatorPresentationBuffer();
+                if (_rollback != null && _character != null)
+                    _rollback.Initialize(_character, recordInitialState: false);
+                _inputCollector?.ResetState(preserveHeldButtons: true);
+            }
+            return true;
+        }
+
+        internal void OnReconciledSpawn(MoveData state) {
+            ApplyLookRotation(state.viewAngles.y, state.viewAngles.x);
+            _ownershipGate.OnAuthoritativeSpawnPoseApplied();
+        }
+
+        private void ApplyAuthoritativeSpawnPoseLocal(Vector3 position, Quaternion rotation, uint epoch) {
+            // A newer reconcile may arrive before this RPC. Never teleport back
+            // over that snapshot or accept a previous life's spawn message.
+            if (epoch <= _movementEpoch)
+                return;
+            AcceptMovementEpoch(epoch);
+            ClearReplicateCache();
             transform.SetPositionAndRotation(position, rotation);
 
             float yaw = rotation.eulerAngles.y;
@@ -604,6 +634,7 @@ namespace Fragsurf.Movement {
             if (_character != null) {
                 MoveData state = _character.BuildRespawnState(position, yaw, 0f);
                 _character.LoadState(state);
+                _rollback?.Initialize(_character);
 
                 if (_character.viewTransform != null)
                     pitch = NormalizeSignedAngle(_character.viewTransform.eulerAngles.x);

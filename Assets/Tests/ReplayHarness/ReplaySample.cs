@@ -125,6 +125,8 @@ namespace Fragsurf.ReplayHarness {
             unchecked {
                 int hash = 17;
                 HashInt(ref hash, state.frame);
+                HashInt(ref hash, Quantize(state.maxStaminaBonus));
+                HashInt(ref hash, Quantize(state.staminaRegenBonus));
                 HashInt(ref hash, Quantize(state.origin.x));
                 HashInt(ref hash, Quantize(state.origin.y));
                 HashInt(ref hash, Quantize(state.origin.z));

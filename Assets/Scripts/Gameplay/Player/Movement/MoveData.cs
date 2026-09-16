@@ -13,6 +13,7 @@ namespace Fragsurf.Movement {
     public class MoveData {
         
         public int frame = -1;
+        public InputFrame lastInput = InputFrame.Empty();
         
         ///// Types /////
 
@@ -47,6 +48,9 @@ namespace Fragsurf.Movement {
         public bool uncrouchDown = false;
 
         // Stamina & Dash
+        // Session configuration remains the base; runtime upgrades are rollback state.
+        public float maxStaminaBonus = 0f;
+        public float staminaRegenBonus = 0f;
         public float stamina = 3f;
         public float staminaRegenTimer = 0f;
         public float dashTimer = 0f;

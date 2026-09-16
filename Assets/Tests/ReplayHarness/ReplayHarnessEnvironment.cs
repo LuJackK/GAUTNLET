@@ -63,6 +63,9 @@ namespace Fragsurf.ReplayHarness {
                 ? character.moveData.Clone()
                 : new MoveData();
             state.frame = -1;
+            state.lastInput = InputFrame.Empty();
+            state.maxStaminaBonus = 0f;
+            state.staminaRegenBonus = 0f;
             state.origin = _spawnOrigin;
             state.velocity = Vector3.zero;
             state.viewAngles = new Vector3(_trace.initialPitch, _trace.initialYaw, 0f);

@@ -21,10 +21,11 @@ This folder owns the FishNet-backed multiplayer player flow: spawning, ownership
 1. FishNet starts a `NetworkedCharacter`; it resolves local references, initializes `RollbackManager`, subscribes to ticks, and keeps local input/aiming disabled until ownership is ready.
 2. `PlayerSpawnService` waits for the server-side player object, chooses a `SpawnPoint` or fallback pose, then calls `ApplyAuthoritativeSpawnPoseServer`.
 3. On each FishNet tick, `NetworkedCharacter` gathers local owner input or reuses replicated input for proxies, then calls the `[Replicate]` method `RunInputs`.
-4. `NetworkedCharacterPredictionReconcileService.RunReplicate` normalizes input, stores replay input, syncs look angles into `MoveData`, runs `RollbackManager.SimulatePredictedTick`, and refreshes spectator yaw presentation for non-owners.
+4. `NetworkedCharacterPredictionReconcileService.RunReplicate` resolves input availability and generation, seeds missing input from the restored state, runs `RollbackManager.SimulatePredictedTick`, and refreshes spectator yaw presentation for non-owners. FishNet retains the connected input history.
 5. On server post-tick, `CreateReconcile` serializes authoritative movement/combat state into `NetworkedCharacterReconcileData`.
-6. Clients rebuild authoritative `MoveData`, compare it against predicted history with `StateDivergenceEvaluator`, and only call rollback correction when the correction gate requires it.
-7. When corrected, `RollbackManager` loads the authoritative state and replays buffered inputs through `RollbackReplayEngine` up to the current predicted tick.
+6. Clients rebuild authoritative `MoveData` using FishNet's mapped `GetTick()` for the owner input clock. `StateDivergenceEvaluator` is diagnostic; every accepted reconcile restores a baseline.
+7. FishNet alone replays connected inputs. Never call `ApplyAuthoritativeCorrection` inside a FishNet reconcile: that API preflights and replays standalone/harness input. `RestoreAuthoritativeState` only loads a baseline. Replay passes suppress live melee queries.
+8. Respawns advance `MovementEpoch`. Old-life inputs and reconciles are rejected; explicit spawn RPCs clear FishNet caches. A new-epoch reconcile may arrive before the pose RPC and takes precedence.
 
 ## Key Dependencies
 
@@ -38,8 +39,8 @@ This folder owns the FishNet-backed multiplayer player flow: spawning, ownership
 - FishNet prediction must be enabled on the player `NetworkObject`; otherwise remote movement may freeze because legacy broadcast paths are disabled.
 - Local control is intentionally gated. Do not enable `LocalInputCollector` or `PlayerAiming` directly; go through `RefreshOwnershipState`/ownership gate behavior.
 - Spawn pose matters for prediction startup. The owner normally waits for an authoritative spawn pose, with a short fail-safe for local authority.
-- Replay input integrity is strict. Missing or conflicting canonical inputs log errors and can abort replay.
-- `RollbackStateHistory` is a 256-frame ring buffer; `NetworkedCharacterPredictionReconcileService` keeps replay inputs in a 1024-frame ring.
+- FishNet owns connected input history. `HasInput` and `ReplicateState.Created` determine input availability before tick stamping. Predicted input holds controls/look, clears press edges, and uses `MoveData.lastInput` as its restored seed.
+- `RollbackStateHistory` is a 256-frame ring buffer. Standalone correction preflights the range, returns false with `LastReplayError` on invalid inputs/window, and retains the old timeline. Callers must handle failure.
 - Owner, server, and spectator simulation now consume identical crouch input. `ShouldIgnoreCrouchForForeignSimulation` returns false for compatibility. Crouch changes collision geometry and lunge cancellation; never strip it according to ownership.
 - Spectator presentation currently applies authoritative yaw only; pitch is not a steady-state spectator presentation target.
 - Camera ownership is enforced repeatedly in `LateUpdate` so remote player cameras/audio listeners do not become active.

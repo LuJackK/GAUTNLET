@@ -69,7 +69,7 @@ public class StaminaUI : MonoBehaviour
         if (_staminaFillImage == null || _healthImages.Count == 0)
             RebuildBars();
 
-        int currentMax = Mathf.Max(1, Mathf.CeilToInt(player.movementConfig.maxStamina));
+        int currentMax = Mathf.Max(1, Mathf.CeilToInt(player.MaxStamina));
         int currentMaxHealth = ResolveMaxHealth();
         if (currentMax != _maxStaminaCached || currentMaxHealth != _maxHealthCached)
             RebuildBars();
@@ -111,7 +111,7 @@ public class StaminaUI : MonoBehaviour
             return;
 
         _maxHealthCached = ResolveMaxHealth();
-        _maxStaminaCached = Mathf.Max(1, Mathf.CeilToInt(player.movementConfig.maxStamina));
+        _maxStaminaCached = Mathf.Max(1, Mathf.CeilToInt(player.MaxStamina));
 
         BuildHealthItems();
         BuildStaminaBar();
@@ -459,14 +459,14 @@ public class StaminaUI : MonoBehaviour
         if (_staminaFillRect == null || _staminaRegenPreviewRect == null || _staminaRegenPreviewImage == null || player == null || player.movementConfig == null)
             return;
 
-        float maxStamina = Mathf.Max(1f, player.movementConfig.maxStamina);
+        float maxStamina = Mathf.Max(1f, player.MaxStamina);
         float currentStamina = Mathf.Clamp(player.moveData.stamina, 0f, maxStamina);
         float fillAmount = currentStamina / maxStamina;
         SetVerticalSegment(_staminaFillRect, 0f, fillAmount);
 
         bool belowMax = currentStamina < maxStamina;
         float previewStamina = belowMax
-            ? currentStamina + Mathf.Max(0f, player.movementConfig.staminaRegenRate) * Mathf.Max(0f, regenPreviewSeconds)
+            ? currentStamina + Mathf.Max(0f, player.StaminaRegenRate) * Mathf.Max(0f, regenPreviewSeconds)
             : currentStamina;
         float previewAmount = Mathf.Clamp01(previewStamina / maxStamina);
         SetVerticalSegment(_staminaRegenPreviewRect, fillAmount, previewAmount);

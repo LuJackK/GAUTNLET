@@ -26,7 +26,7 @@ namespace Fragsurf.Movement {
             s.isDashing = s.isDashing && s.dashTimer > 0f;
             float regenTime = Mathf.Max(0f, dt - s.staminaRegenTimer);
             s.staminaRegenTimer = Mathf.Max(0f, s.staminaRegenTimer - dt);
-            s.stamina = Mathf.MoveTowards(s.stamina, config.maxStamina, config.staminaRegenRate * regenTime);
+            s.stamina = Mathf.MoveTowards(s.stamina, config.GetMaxStamina(s), config.GetStaminaRegenRate(s) * regenTime);
             s.jumpTimer += dt;
 
             Vector3 normal = FindGround(surfer, config);
@@ -246,8 +246,7 @@ namespace Fragsurf.Movement {
             _surfer = surfer;
             MoveData s = surfer.moveData;
             float standing = s.defaultHeight;
-            float ducked = standing * Mathf.Clamp(s.crouchingHeight, 0.01f, 1f);
-            if (surfer.collider is CapsuleCollider cap) ducked = Mathf.Max(ducked, cap.radius * 2f);
+            float ducked = GetColliderHeight(s, surfer.collider, true);
             float difference = standing - ducked;
             bool wants = s.slideRequested;
             SetHeight(surfer.collider, s.crouching ? ducked : standing);
@@ -268,6 +267,11 @@ namespace Fragsurf.Movement {
             s.uncrouchDown = false;
             s.crouchLerp = Mathf.MoveTowards(s.crouchLerp, s.crouching ? 1f : 0f, s.crouchingSpeed * dt);
             s.renderCrouchLerp = s.crouchLerp;
+        }
+
+        internal static float GetColliderHeight(MoveData state, Collider collider, bool crouching) {
+            float height = crouching ? state.defaultHeight * Mathf.Clamp(state.crouchingHeight, 0.01f, 1f) : state.defaultHeight;
+            return collider is CapsuleCollider capsule ? Mathf.Max(height, capsule.radius * 2f) : height;
         }
 
         private static void SetHeight(Collider collider, float height) {

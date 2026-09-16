@@ -65,12 +65,16 @@
     <Compile Include="Assets\Tests\ReplayHarness\ReplayHarnessPlayModeTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayHarnessRunner.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayTraceRecorder.cs" />
+    <Compile Include="Assets\Tests\ReplayHarness\ReliableCharacterRollbackTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\MovementMotorTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayHarnessEnvironment.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayHarnessBootstrap.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplaySample.cs" />
+    <Compile Include="Assets\Tests\ReplayHarness\WorldRollbackHistoryTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\StateDivergenceEvaluatorTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayComparison.cs" />
+    <Compile Include="Assets\Tests\ReplayHarness\ConnectedCharacterRollbackTests.cs" />
+    <Compile Include="Assets\Tests\ReplayHarness\WorldCombatResolverTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayTraceAsset.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\MovementPresentationContractTests.cs" />
   </ItemGroup>

@@ -40,9 +40,10 @@ namespace Fragsurf.ReplayHarness {
                     ReplayTickRecord authoritativeRecord = authoritativeReference.records[deliveredAuthoritativeIndex];
                     MoveData authoritativeState = CreateAuthoritativeState(environment, authoritativeRecord);
                     AccumulatePredictionMetrics(environment, result, authoritativeRecord);
-                    environment.rollback.ApplyAuthoritativeCorrection(authoritativeState,
+                    if (!environment.rollback.ApplyAuthoritativeCorrection(authoritativeState,
                                                                      trace.tickDelta,
-                                                                     tick => GetReplayInput(trace, tick));
+                                                                     tick => GetReplayInput(trace, tick), trace.characterObjectId))
+                        throw new InvalidOperationException(environment.rollback.LastReplayError);
                     result.correctionCount++;
                     deliveredAuthoritativeIndex++;
                 }
@@ -52,9 +53,10 @@ namespace Fragsurf.ReplayHarness {
                 ReplayTickRecord authoritativeRecord = authoritativeReference.records[deliveredAuthoritativeIndex];
                 MoveData authoritativeState = CreateAuthoritativeState(environment, authoritativeRecord);
                 AccumulatePredictionMetrics(environment, result, authoritativeRecord);
-                environment.rollback.ApplyAuthoritativeCorrection(authoritativeState,
+                if (!environment.rollback.ApplyAuthoritativeCorrection(authoritativeState,
                                                                  trace.tickDelta,
-                                                                 tick => GetReplayInput(trace, tick));
+                                                                 tick => GetReplayInput(trace, tick), trace.characterObjectId))
+                    throw new InvalidOperationException(environment.rollback.LastReplayError);
                 result.correctionCount++;
                 deliveredAuthoritativeIndex++;
             }

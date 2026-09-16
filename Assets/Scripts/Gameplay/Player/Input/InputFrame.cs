@@ -26,7 +26,15 @@ namespace Fragsurf.Movement {
 
         public bool HasButton(byte btn)    => (buttons & btn) != 0;
         public bool IsJustPressed(byte btn)=> (justPressed & btn) != 0;
-        public bool IsValid => frame != InvalidFrame;
+        public bool IsValid => frame >= 0;
+
+        // Predict held controls, never invent another one-shot button press.
+        public InputFrame PredictForTick(int tick) {
+            InputFrame predicted = this;
+            predicted.frame = tick;
+            predicted.justPressed = 0;
+            return predicted;
+        }
 
         public float LookYaw => lookYaw100 / 100f;
         public float LookPitch => lookPitch100 / 100f;

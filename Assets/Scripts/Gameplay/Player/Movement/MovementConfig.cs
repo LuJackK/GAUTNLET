@@ -3,6 +3,8 @@ namespace Fragsurf.Movement {
 
     [System.Serializable]
     public class MovementConfig {
+        public float GetMaxStamina(MoveData state) => Mathf.Max(0f, maxStamina + (state?.maxStaminaBonus ?? 0f));
+        public float GetStaminaRegenRate(MoveData state) => Mathf.Max(0f, staminaRegenRate + (state?.staminaRegenBonus ?? 0f));
 
         [Header ("Jumping and gravity")]
         public bool autoBhop = true;

@@ -13,55 +13,91 @@ namespace Fragsurf.Movement {
         public int CurrentTick => _currentTick;
         public int RollbackCount { get; private set; }
         public int LastCorrectedTick { get; private set; } = InputFrame.InvalidFrame;
+        public string LastReplayError { get; private set; } = string.Empty;
 
-        public void Initialize(SurfCharacter character) {
+        public void Initialize(SurfCharacter character, bool recordInitialState = true) {
             _character = character;
             _predictedStateHistory = new RollbackStateHistory();
             _replayEngine = (_character != null) ? new RollbackReplayEngine(_character) : null;
-            _currentTick = (_character != null && _character.moveData != null)
+            _currentTick = (recordInitialState && _character != null && _character.moveData != null)
                 ? _character.moveData.frame
                 : InputFrame.InvalidFrame;
             RollbackCount = 0;
             LastCorrectedTick = InputFrame.InvalidFrame;
+            LastReplayError = string.Empty;
 
-            if (_character != null && _character.moveData != null && _character.moveData.frame != InputFrame.InvalidFrame)
+            if (recordInitialState && _character != null && _character.moveData != null && _character.moveData.frame != InputFrame.InvalidFrame)
                 _predictedStateHistory.Record(_character.moveData.frame, _character.moveData);
         }
 
-        public void SimulatePredictedTick(InputFrame input, float deltaTime) {
-            if (!CanSimulate() || !input.IsValid)
+        public void SimulatePredictedTick(InputFrame input, float deltaTime, bool allowGameplaySideEffects = true) {
+            if (!CanSimulate() || !input.IsValid || !_character.IsSimulationReady)
                 return;
 
-            _character.moveData = _character.SimulationTick(_character.moveData, input, deltaTime);
+            _character.moveData = _character.SimulationTick(_character.moveData, input, deltaTime, allowGameplaySideEffects);
             _currentTick = input.frame;
             _predictedStateHistory.Record(input.frame, _character.moveData);
         }
 
-        public void ApplyAuthoritativeCorrection(MoveData correctedState,
-                                                 float deltaTime,
-                                                 Func<int, InputFrame> replayInputProvider) {
-            if (!CanSimulate() || correctedState == null)
+        // FishNet owns replay in a connected session. Its reconcile callback only
+        // restores the baseline; subsequent Replicate(Replayed) calls advance it.
+        public void RestoreAuthoritativeState(MoveData correctedState) {
+            if (!CanSimulate() || correctedState == null || correctedState.frame < 0)
                 return;
+
+            if (_currentTick > correctedState.frame)
+                RollbackCount++;
+            _replayEngine.LoadCorrectedState(correctedState);
+            _currentTick = correctedState.frame;
+            LastCorrectedTick = correctedState.frame;
+            _predictedStateHistory.Record(_currentTick, _character.moveData);
+        }
+
+        // Standalone replay/harness entry point. Never call from a FishNet reconcile.
+        // Preflight before loading or recording anything: bad input leaves the
+        // previous valid timeline intact and reports failure to the caller.
+        public bool ApplyAuthoritativeCorrection(MoveData correctedState,
+                                                 float deltaTime,
+                                                 Func<int, InputFrame> replayInputProvider,
+                                                 int? expectedCharacterObjectId = null) {
+            LastReplayError = string.Empty;
+            if (!CanSimulate() || !_character.IsSimulationReady || correctedState == null || correctedState.frame < 0)
+                return FailReplay("A valid character and corrected snapshot are required.");
+            if (deltaTime <= 0f || float.IsNaN(deltaTime) || float.IsInfinity(deltaTime))
+                return FailReplay("Replay requires a finite positive timestep.");
 
             int correctedTick = correctedState.frame;
             int replayToTick = _currentTick;
-
-            LastCorrectedTick = correctedTick;
-            _replayEngine.LoadCorrectedState(correctedState);
-            _predictedStateHistory.Record(correctedTick, _character.moveData);
-
-            if (replayToTick <= correctedTick) {
-                _currentTick = correctedTick;
-                return;
+            long count = System.Math.Max(0L, (long)replayToTick - correctedTick);
+            if (count >= RollbackStateHistory.BufferSize)
+                return FailReplay("Requested replay exceeds retained state history.");
+            InputFrame[] inputs = new InputFrame[(int)count];
+            int? entityId = expectedCharacterObjectId;
+            if (!entityId.HasValue && _character.moveData.lastInput.IsValid)
+                entityId = _character.moveData.lastInput.characterObjectId;
+            for (int i = 0; i < inputs.Length; i++) {
+                int tick = correctedTick + 1 + i;
+                if (replayInputProvider == null)
+                    return FailReplay($"Missing replay input provider for tick {tick}.");
+                InputFrame input = replayInputProvider(tick);
+                if (!input.IsValid || input.frame != tick)
+                    return FailReplay($"Missing or wrong-tick replay input for tick {tick}.");
+                if (!entityId.HasValue)
+                    entityId = input.characterObjectId;
+                if (input.characterObjectId != entityId)
+                    return FailReplay($"Wrong character in replay input for tick {tick}.");
+                inputs[i] = input;
             }
 
-            RollbackCount++;
-            _replayEngine.ReplayRange(correctedTick + 1,
-                                      replayToTick,
-                                      deltaTime,
-                                      replayInputProvider,
-                                      RecordPredictedState);
-            _currentTick = replayToTick;
+            RestoreAuthoritativeState(correctedState);
+            _replayEngine.Replay(inputs, deltaTime, RecordPredictedState);
+            _currentTick = _character.moveData.frame;
+            return true;
+        }
+
+        private bool FailReplay(string reason) {
+            LastReplayError = reason;
+            return false;
         }
 
         public bool TryGetPredictedState(int tick, out MoveData state) {

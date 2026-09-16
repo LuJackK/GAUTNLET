@@ -8,7 +8,7 @@ This folder contains small Unity UI helpers for menus, player HUD readouts, worl
 - `PlayerHealthBillboard.cs` creates and updates a world-space `TextMesh` health label above non-owned players. It subscribes to `NetworkedCharacter.HealthChanged`, hides the label for the owning player, and faces the active camera in `LateUpdate`.
 - `SingleEventSystemGuard.cs` is a static runtime guard that runs after scene loads. It keeps one active `EventSystem`, preferring a scene-level one over any attached under a FishNet `NetworkObject`.
 - `Speedometer.cs` defines `VelocityDisplay` and shows `SurfCharacter.moveData.velocity` in a TMP text field. The class/file name mismatch is intentional in the current codebase but can be surprising.
-- `StaminaUI.cs` builds stamina bar instances from a prefab and fills them from `SurfCharacter.moveData.stamina` and `movementConfig.maxStamina`.
+- `StaminaUI.cs` builds stamina bar instances from a prefab and fills them from `SurfCharacter.moveData.stamina` and `SurfCharacter.MaxStamina` (base plus snapshotted upgrades).
 
 ## Dependencies And Flows
 

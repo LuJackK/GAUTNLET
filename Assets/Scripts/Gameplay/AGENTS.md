@@ -1,5 +1,11 @@
 # Gameplay Folder Orientation
 
+## Reliable character rollback (September 14, 2026)
+
+Runtime stamina upgrades live in `MoveData.maxStaminaBonus` and `staminaRegenBonus`. Do not mutate base MovementConfig to apply a pickup. Use `SurfCharacter.MaxStamina`/`StaminaRegenRate` or the corresponding MovementConfig getters. Both modifiers are reconciled and preserved through respawn, matching prior upgrade persistence. Full pickup event replay remains world-rollback work.
+
+`MoveData.lastInput` is the restored prediction seed. LoadState rebinds Transform references to the receiving character. Crouch simulation and restore share `SurfController.GetColliderHeight`, including capsule minimum diameter. Base rules and collision shape width/radius/scale must remain fixed during a replay session.
+
 ## Current movement contract (September 2026 overhaul)
 
 See MOVEMENT_OVERHAUL.md at the project root for tuning and validation. SurfController now uses a single tick flow and a swept collision motor. Water/ladder branches and camera-water runtime objects are retired; marker scripts and hidden serialized settings remain only for asset compatibility. SurfPhysics is query-only and does not push rigidbodies. Tracer uses collider shape dimensions rather than cached bounds.

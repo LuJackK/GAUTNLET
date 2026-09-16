@@ -20,14 +20,13 @@ namespace GAUNTLET.Gameplay.Pickups
         protected override void Apply(PickupEffectContext context)
         {
             SurfCharacter character = context.Target.SurfCharacter;
-            MovementConfig config = character.movementConfig;
             MoveData moveData = character.moveData;
 
             float increase = Mathf.Max(0f, maxStaminaIncrease);
-            float previousMax = Mathf.Max(0f, config.maxStamina);
+            float previousMax = character.MaxStamina;
             float nextMax = previousMax + increase;
 
-            config.maxStamina = nextMax;
+            moveData.maxStaminaBonus += increase;
 
             if (fillAddedCapacity)
                 moveData.stamina = Mathf.Min(nextMax, moveData.stamina + increase);

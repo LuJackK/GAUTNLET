@@ -72,6 +72,7 @@
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\PlayerMaterialApplicator.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\SurfPhysics.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Combat\Hitbox.cs" />
+    <Compile Include="Assets\Scripts\Multiplayer\World\WorldMovementSerializer.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\RotateWithCamera.cs" />
     <Compile Include="Assets\Scripts\AssemblyInfo.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupWorldItem.cs" />
@@ -80,6 +81,7 @@
     <Compile Include="Assets\Scripts\Gameplay\Pickups\HealthPickupEffectDefinition.cs" />
     <Compile Include="Assets\Scripts\UI\PlayerHealthBillboard.cs" />
     <Compile Include="Assets\Scripts\Shared\Extensions\VectorExtensions.cs" />
+    <Compile Include="Assets\Scripts\Multiplayer\World\WorldRollbackHistory.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacter.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupEffectContext.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\MeleePlasmaEffect.cs" />
@@ -112,6 +114,7 @@
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupDefinition.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\Spawning\SpawnPoint.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\ParryShieldEffect.cs" />
+    <Compile Include="Assets\Scripts\Multiplayer\World\WorldSnapshot.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\ISurfControllable.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\StateDivergenceEvaluator.cs" />
     <Compile Include="Assets\Scripts\Environment\AtmosphereProfileApplier.cs" />
@@ -129,6 +132,7 @@
     <Compile Include="Assets\Scripts\Multiplayer\Player\StateDivergenceReport.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\PlayerSoundController.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacterCameraOwnershipGuard.cs" />
+    <Compile Include="Assets\Scripts\Multiplayer\World\WorldCombatResolver.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Input\InputFrame.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\PlayerMaterialManager.cs" />
   </ItemGroup>

@@ -4,10 +4,14 @@ namespace Fragsurf.Movement {
 
     internal struct NetworkedCharacterReplicateData : IReplicateData {
         public InputFrame Input;
+        public bool HasInput;
+        public uint MovementEpoch;
         private uint _tick;
 
-        public NetworkedCharacterReplicateData(InputFrame input) {
+        public NetworkedCharacterReplicateData(InputFrame input, uint movementEpoch = 0) {
             Input = input;
+            HasInput = input.IsValid;
+            MovementEpoch = movementEpoch;
             _tick = 0;
         }
 
@@ -18,6 +22,16 @@ namespace Fragsurf.Movement {
 
     internal struct NetworkedCharacterReconcileData : IReconcileData {
         public int Frame;
+        public uint MovementEpoch;
+        public InputFrame LastInput;
+        public float DefaultHeight;
+        public float CrouchingHeight;
+        public float CrouchingSpeed;
+        public bool SlidingEnabled;
+        public bool UseStepOffset;
+        public float StepOffset;
+        public float MaxStaminaBonus;
+        public float StaminaRegenBonus;
         public UnityEngine.Vector3 Position;
         public UnityEngine.Vector3 Velocity;
         public float Yaw;
@@ -75,6 +89,16 @@ namespace Fragsurf.Movement {
 
         public NetworkedCharacterReconcileData(int frame) {
             Frame = frame;
+            MovementEpoch = 0;
+            LastInput = InputFrame.Empty();
+            DefaultHeight = 2f;
+            CrouchingHeight = 1f;
+            CrouchingSpeed = 10f;
+            SlidingEnabled = false;
+            UseStepOffset = false;
+            StepOffset = 0f;
+            MaxStaminaBonus = 0f;
+            StaminaRegenBonus = 0f;
             Position = default;
             Velocity = default;
             Yaw = 0f;
@@ -128,7 +152,9 @@ namespace Fragsurf.Movement {
             LastConsumedParryPressFrame = -1;
             LastConsumedJumpPressFrame = -1;
             LastConsumedDashPressFrame = -1;
-            _tick = 0;
+            // FishNet supplies the owner-local/server tick on receipt. Direct
+            // offline tests can use Frame until that transport tick is supplied.
+            _tick = uint.MaxValue;
         }
 
         public uint GetTick() => _tick;

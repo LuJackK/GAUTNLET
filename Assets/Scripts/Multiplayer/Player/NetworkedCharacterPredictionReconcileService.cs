@@ -4,34 +4,23 @@ using UnityEngine;
 namespace Fragsurf.Movement {
 
     internal sealed class NetworkedCharacterPredictionReconcileService {
-        private const int ReplayInputBufferSize = 1024;
         private const int SpectatorSnapshotBufferSize = 64;
         private const int SpectatorInterpolationDelayTicks = 2;
 
         private readonly NetworkedCharacter _owner;
-        private readonly InputFrame[] _replayInputs = new InputFrame[ReplayInputBufferSize];
-        private readonly int[] _replayInputTicks = new int[ReplayInputBufferSize];
-        private readonly byte[] _replayInputQuality = new byte[ReplayInputBufferSize];
         private readonly AuthoritativeMoveDataSnapshotBuffer _spectatorSnapshots = new AuthoritativeMoveDataSnapshotBuffer();
 
-        private const byte ReplayInputQualityMissing = 0;
-        private const byte ReplayInputQualityRecovered = 1;
-        private const byte ReplayInputQualityCanonical = 2;
         private readonly CorrectionGateConfig _correctionGateConfig = CorrectionGateConfig.CreateConservativeDefaults();
         private readonly StateDivergenceEvaluator _divergenceEvaluator;
         private readonly CorrectionGateDiagnosticsSnapshot _diagnostics = new CorrectionGateDiagnosticsSnapshot();
         private int _consecutiveObserveCount;
+        private bool _suppressReplay;
 
         internal CorrectionGateDiagnosticsSnapshot Diagnostics => _diagnostics;
 
         public NetworkedCharacterPredictionReconcileService(NetworkedCharacter owner) {
             _owner = owner;
             _divergenceEvaluator = new StateDivergenceEvaluator(_correctionGateConfig);
-
-            for (int i = 0; i < ReplayInputBufferSize; i++) {
-                _replayInputTicks[i] = InputFrame.InvalidFrame;
-                _replayInputQuality[i] = ReplayInputQualityMissing;
-            }
         }
 
         public void RunReplicate(NetworkedCharacterReplicateData replicateData,
@@ -41,48 +30,29 @@ namespace Fragsurf.Movement {
                                  ref bool hasLastTickedInput) {
             if (_owner.IsPureClientProxy)
                 return;
+            if (_suppressReplay && state.ContainsReplayed())
+                return;
 
             RollbackManager rollback = _owner.RollbackManager;
             if (rollback == null)
                 return;
 
-            InputFrame input = replicateData.Input;
-            int replicateTick = (int)replicateData.GetTick();
-            if (replicateTick > 0) {
-                input.frame = replicateTick;
-            } else if (input.frame < 0 && state.ContainsCreated()) {
-                input.frame = (_owner.NetworkTimeManager != null) ? (int)_owner.NetworkTimeManager.Tick : 0;
-            }
-
-            bool hasCreatedInput = state.ContainsCreated();
-            bool isRecoveredInput = false;
-            if (!input.IsValid) {
-                if (hasLastTickedInput) {
-                    input = lastTickedInput;
-                    if (replicateTick > 0)
-                        input.frame = replicateTick;
-                    isRecoveredInput = true;
-
-                    // Non-created states (future/predicted) are expected to borrow
-                    // from the most recent ticked input while waiting for real data.
-                    if (hasCreatedInput)
-                        LogReplayIntegrityError($"Missing canonical input for tick {input.frame}; using last known input as emergency recovery.");
-                } else {
-                    // Spectator proxies can legitimately have no created input yet
-                    // for future ticks. In that case simply wait for the first
-                    // authoritative input instead of raising an integrity error.
-                    if (!hasCreatedInput)
-                        return;
-
-                    LogReplayIntegrityError("Missing canonical input and no previous authoritative input exists.");
+            if (replicateData.HasInput && replicateData.MovementEpoch != _owner.MovementEpoch) {
+                // Old-life inputs must not move a respawned owner during replay.
+                if (state.ContainsReplayed() || !_owner.IsServerInitialized)
                     return;
-                }
+                replicateData.HasInput = false;
             }
-
-            if (input.characterObjectId <= 0)
-                input.characterObjectId = _owner.ObjectId;
-
-            if (input.characterObjectId != _owner.ObjectId)
+            int replicateTick = unchecked((int)replicateData.GetTick());
+            if (replicateTick < 0)
+                return;
+            InputFrame previous = _owner.CurrentMoveData != null
+                ? _owner.CurrentMoveData.lastInput : InputFrame.Empty();
+            if (!previous.IsValid && _owner.CurrentMoveData != null) {
+                Vector3 look = _owner.CurrentMoveData.viewAngles;
+                previous = InputFrame.Create(0, _owner.ObjectId, 0, 0, 0, 0, look.y, look.x);
+            }
+            if (!TryResolveInput(replicateData, state, previous, _owner.ObjectId, out InputFrame input))
                 return;
 
             _diagnostics.ReplicateTicksProcessed++;
@@ -93,11 +63,28 @@ namespace Fragsurf.Movement {
                 hasLastTickedInput = true;
             }
 
-            _owner.SyncCurrentMoveLook(input.LookYaw, input.LookPitch);
-            byte replayInputQuality = DetermineReplayInputQuality(state, isRecoveredInput);
-            StoreReplayInput(input, replayInputQuality);
-            rollback.SimulatePredictedTick(input, deltaTime);
+            rollback.SimulatePredictedTick(input, deltaTime, !state.ContainsReplayed());
             ApplySpectatorPresentation(input.frame);
+        }
+
+        internal static bool TryResolveInput(NetworkedCharacterReplicateData data, ReplicateState state,
+                                             InputFrame previous, int objectId, out InputFrame input) {
+            int tick = unchecked((int)data.GetTick());
+            input = InputFrame.Empty();
+            if (tick < 0)
+                return false;
+            // Availability precedes tick stamping: default structs are not input.
+            if (state.ContainsCreated() && data.HasInput && data.Input.IsValid) {
+                input = data.Input;
+                if (input.characterObjectId != objectId)
+                    return false;
+                input.frame = tick;
+                return true;
+            }
+            // The seed is part of the restored state, not the latest live input.
+            input = previous.IsValid && previous.characterObjectId == objectId
+                ? previous.PredictForTick(tick) : InputFrame.Empty(tick, objectId);
+            return true;
         }
 
         public NetworkedCharacterReconcileData BuildReconcileData(int frame) {
@@ -105,6 +92,16 @@ namespace Fragsurf.Movement {
             _owner.GetAuthoritativeLookAngles(out float yaw, out float pitch);
 
             NetworkedCharacterReconcileData data = new NetworkedCharacterReconcileData(frame) {
+                DefaultHeight = state != null ? state.defaultHeight : 2f,
+                CrouchingHeight = state != null ? state.crouchingHeight : 1f,
+                CrouchingSpeed = state != null ? state.crouchingSpeed : 10f,
+                SlidingEnabled = state != null ? state.slidingEnabled : false,
+                UseStepOffset = state != null ? state.useStepOffset : false,
+                StepOffset = state != null ? state.stepOffset : 0f,
+                MovementEpoch = _owner.MovementEpoch,
+                LastInput = state != null ? state.lastInput : InputFrame.Empty(),
+                MaxStaminaBonus = state != null ? state.maxStaminaBonus : 0f,
+                StaminaRegenBonus = state != null ? state.staminaRegenBonus : 0f,
                 Position = _owner.CurrentPosition,
                 Velocity = _owner.CurrentVelocity,
                 Yaw = yaw,
@@ -168,6 +165,17 @@ namespace Fragsurf.Movement {
             if (character == null)
                 return;
 
+            bool newEpoch = reconcileData.MovementEpoch > _owner.MovementEpoch;
+            _suppressReplay = !_owner.AcceptMovementEpoch(reconcileData.MovementEpoch);
+            if (_suppressReplay)
+                return;
+            // Frame on the wire is server time. FishNet maps GetTick() into the
+            // owning client's local input timeline before invoking reconciliation.
+            if (reconcileData.GetTick() != uint.MaxValue)
+                reconcileData.Frame = unchecked((int)reconcileData.GetTick());
+            if (reconcileData.Frame < 0)
+                return;
+
             _diagnostics.ReconcilePacketsReceived++;
 
             RollbackManager rollback = _owner.RollbackManager;
@@ -181,6 +189,8 @@ namespace Fragsurf.Movement {
             }
 
             MoveData authoritativeState = BuildAuthoritativeMoveData(reconcileData, character, predictedState);
+            if (newEpoch)
+                _owner.OnReconciledSpawn(authoritativeState);
 
             if (_owner.IsPureClientProxy) {
                 _spectatorSnapshots.Store(reconcileData.Frame, authoritativeState);
@@ -208,13 +218,9 @@ namespace Fragsurf.Movement {
             UpdateDiagnostics(report, reconcileData.Frame);
             LogCorrectionDecision(report, reconcileData.Frame);
 
-            if (report.Decision == CorrectionDecision.Ignore || report.Decision == CorrectionDecision.ObserveOnly) {
-                character.RefreshRuntimeStateFromMoveData();
-                ApplySpectatorPresentation(reconcileData.Frame);
-                return;
-            }
-
-            rollback.ApplyAuthoritativeCorrection(authoritativeState, deltaTime, GetReplayInputForTick);
+            // The gate remains diagnostic. FishNet will replay even when the
+            // difference is small, so every reconcile must restore its baseline.
+            rollback.RestoreAuthoritativeState(authoritativeState);
             character.RefreshRuntimeStateFromMoveData();
             ApplySpectatorPresentation(reconcileData.Frame);
         }
@@ -235,6 +241,12 @@ namespace Fragsurf.Movement {
             _spectatorSnapshots.Clear();
         }
 
+        public void ResetSession() {
+            _suppressReplay = false;
+            _consecutiveObserveCount = 0;
+            _spectatorSnapshots.Clear();
+        }
+
         private MoveData BuildAuthoritativeMoveData(NetworkedCharacterReconcileData reconcileData,
                                                     SurfCharacter character,
                                                     MoveData predictedState) {
@@ -242,6 +254,17 @@ namespace Fragsurf.Movement {
                 ? predictedState.Clone()
                 : CreateAuthoritativeMoveDataShell(character);
             state.frame = reconcileData.Frame;
+            state.lastInput = reconcileData.LastInput;
+            if (state.lastInput.IsValid)
+                state.lastInput.frame = reconcileData.Frame;
+            state.defaultHeight = reconcileData.DefaultHeight;
+            state.crouchingHeight = reconcileData.CrouchingHeight;
+            state.crouchingSpeed = reconcileData.CrouchingSpeed;
+            state.slidingEnabled = reconcileData.SlidingEnabled;
+            state.useStepOffset = reconcileData.UseStepOffset;
+            state.stepOffset = reconcileData.StepOffset;
+            state.maxStaminaBonus = reconcileData.MaxStaminaBonus;
+            state.staminaRegenBonus = reconcileData.StaminaRegenBonus;
             state.origin = reconcileData.Position;
             state.velocity = reconcileData.Velocity;
             state.viewAngles.y = reconcileData.Yaw;
@@ -338,76 +361,6 @@ namespace Fragsurf.Movement {
             return value != 0;
         }
 
-        private static byte DetermineReplayInputQuality(ReplicateState state, bool isRecoveredInput) {
-            if (isRecoveredInput)
-                return ReplayInputQualityRecovered;
-
-            return state.ContainsCreated()
-                ? ReplayInputQualityCanonical
-                : ReplayInputQualityRecovered;
-        }
-
-        private void StoreReplayInput(InputFrame input, byte quality) {
-            if (!input.IsValid)
-                return;
-
-            int slot = FrameToSlot(input.frame);
-            int existingTick = _replayInputTicks[slot];
-            byte existingQuality = _replayInputQuality[slot];
-            if (existingTick == input.frame) {
-                InputFrame existingInput = _replayInputs[slot];
-                if (existingInput.HasSameControls(input)) {
-                    _replayInputs[slot] = input;
-                    _replayInputQuality[slot] = (byte)Mathf.Max(existingQuality, quality);
-                    return;
-                }
-
-                if (existingQuality == ReplayInputQualityRecovered && quality == ReplayInputQualityCanonical) {
-                    _replayInputs[slot] = input;
-                    _replayInputQuality[slot] = quality;
-                    return;
-                }
-
-                if (existingQuality == ReplayInputQualityCanonical && quality == ReplayInputQualityRecovered) {
-                    return;
-                }
-
-                if (existingQuality == ReplayInputQualityCanonical && quality == ReplayInputQualityCanonical) {
-                    LogReplayIntegrityError($"Conflicting canonical replay input detected for tick {input.frame}.");
-                }
-            } else if (existingTick != InputFrame.InvalidFrame && !IsExpectedReplayEviction(existingTick, input.frame)) {
-                LogReplayIntegrityError($"Replay input slot overwrite detected. slot={slot}, oldTick={existingTick}, newTick={input.frame}.");
-            }
-
-            _replayInputs[slot] = input;
-            _replayInputTicks[slot] = input.frame;
-            _replayInputQuality[slot] = quality;
-        }
-
-        private InputFrame GetReplayInputForTick(int tick) {
-            int slot = FrameToSlot(tick);
-            if (_replayInputTicks[slot] == tick) {
-                InputFrame input = _replayInputs[slot];
-                input.frame = tick;
-                return input;
-            }
-
-            LogReplayIntegrityError($"Missing replay input for tick {tick}.");
-            return InputFrame.Empty(InputFrame.InvalidFrame, _owner.ObjectId);
-        }
-
-        private static int FrameToSlot(int frame) {
-            int slot = frame % ReplayInputBufferSize;
-            return (slot < 0) ? slot + ReplayInputBufferSize : slot;
-        }
-
-        private static bool IsExpectedReplayEviction(int existingTick, int newTick) {
-            if (existingTick == InputFrame.InvalidFrame)
-                return false;
-
-            return newTick - existingTick >= ReplayInputBufferSize;
-        }
-
         private void ApplySpectatorPresentation(int frame) {
             _owner.ApplySpectatorPresentationYawFromCurrentState();
 
@@ -434,10 +387,6 @@ namespace Fragsurf.Movement {
             _diagnostics.LastSummary = $"SpectatorPresentation | authoritative frame {frame} buffered";
             _consecutiveObserveCount = 0;
             _diagnostics.ConsecutiveObserveCount = 0;
-        }
-
-        private void LogReplayIntegrityError(string message) {
-            Debug.LogError($"[NetworkedCharacterPredictionReconcileService] {message}", _owner);
         }
 
         private void UpdateDiagnostics(StateDivergenceReport report, int frame) {
