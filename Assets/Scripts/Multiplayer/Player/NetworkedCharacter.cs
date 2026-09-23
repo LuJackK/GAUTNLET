@@ -281,6 +281,8 @@ namespace Fragsurf.Movement {
                 input.lookPitch100 = (short)Mathf.RoundToInt(NormalizeSignedAngle(pitch) * 100f);
             }
 
+            NetcodeTraceRecorder.Record(this, "inputPrepared", tick, input: input,
+                hasInput: input.IsValid, reason: DebugHasLocalAuthority ? "sampled" : "cached or absent");
             return new NetworkedCharacterReplicateData(input, _movementEpoch);
         }
 

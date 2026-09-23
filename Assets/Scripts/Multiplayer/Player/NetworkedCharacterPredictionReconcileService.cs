@@ -15,6 +15,7 @@ namespace Fragsurf.Movement {
         private readonly CorrectionGateDiagnosticsSnapshot _diagnostics = new CorrectionGateDiagnosticsSnapshot();
         private int _consecutiveObserveCount;
         private bool _suppressReplay;
+        private int _traceReplayPass;
 
         internal CorrectionGateDiagnosticsSnapshot Diagnostics => _diagnostics;
 
@@ -28,6 +29,10 @@ namespace Fragsurf.Movement {
                                  float deltaTime,
                                  ref InputFrame lastTickedInput,
                                  ref bool hasLastTickedInput) {
+            if (NetcodeTraceRecorder.Recording)
+                NetcodeTraceRecorder.Record(_owner, "inputAvailable", unchecked((int)replicateData.GetTick()),
+                    input: replicateData.Input, hasInput: replicateData.HasInput,
+                    reason: state.ToString(), pass: state.ContainsReplayed() ? _traceReplayPass : 0, payloadEpoch: replicateData.MovementEpoch);
             if (_owner.IsPureClientProxy)
                 return;
             if (_suppressReplay && state.ContainsReplayed())
@@ -38,6 +43,8 @@ namespace Fragsurf.Movement {
                 return;
 
             if (replicateData.HasInput && replicateData.MovementEpoch != _owner.MovementEpoch) {
+                NetcodeTraceRecorder.Record(_owner, "inputRejected", unchecked((int)replicateData.GetTick()),
+                    input: replicateData.Input, reason: "wrong movement epoch");
                 // Old-life inputs must not move a respawned owner during replay.
                 if (state.ContainsReplayed() || !_owner.IsServerInitialized)
                     return;
@@ -52,8 +59,10 @@ namespace Fragsurf.Movement {
                 Vector3 look = _owner.CurrentMoveData.viewAngles;
                 previous = InputFrame.Create(0, _owner.ObjectId, 0, 0, 0, 0, look.y, look.x);
             }
-            if (!TryResolveInput(replicateData, state, previous, _owner.ObjectId, out InputFrame input))
+            if (!TryResolveInput(replicateData, state, previous, _owner.ObjectId, out InputFrame input)) {
+                NetcodeTraceRecorder.Record(_owner, "inputRejected", replicateTick, reason: "invalid tick or entity");
                 return;
+            }
 
             _diagnostics.ReplicateTicksProcessed++;
             _diagnostics.LastReplicateFrame = input.frame;
@@ -63,7 +72,12 @@ namespace Fragsurf.Movement {
                 hasLastTickedInput = true;
             }
 
+            NetcodeTraceRecorder.Record(_owner, "preTick", input.frame, _owner.CurrentMoveData, input, true,
+                state.ContainsCreated() && replicateData.HasInput ? "created input" : "predicted held input or empty seed",
+                pass: state.ContainsReplayed() ? _traceReplayPass : 0, delta: deltaTime);
             rollback.SimulatePredictedTick(input, deltaTime, !state.ContainsReplayed());
+            NetcodeTraceRecorder.Record(_owner, "postTick", input.frame, _owner.CurrentMoveData, input, true,
+                pass: state.ContainsReplayed() ? _traceReplayPass : 0, delta: deltaTime);
             ApplySpectatorPresentation(input.frame);
         }
 
@@ -158,18 +172,26 @@ namespace Fragsurf.Movement {
                 LastConsumedDashPressFrame = (state != null) ? state.lastConsumedDashPressFrame : -1
             };
 
+            NetcodeTraceRecorder.Record(_owner, "snapshotBuilt", frame, state, data.LastInput, true, sourceTick: frame);
             return data;
         }
 
         public void ApplyReconcile(NetworkedCharacterReconcileData reconcileData, float deltaTime) {
+            int traceSourceTick = reconcileData.Frame;
+            _traceReplayPass++;
+            NetcodeTraceRecorder.Record(_owner, "snapshotArrived", unchecked((int)reconcileData.GetTick()),
+                input: reconcileData.LastInput, hasInput: true, sourceTick: traceSourceTick, pass: _traceReplayPass,
+                payloadEpoch: reconcileData.MovementEpoch);
             SurfCharacter character = _owner.Character;
             if (character == null)
                 return;
 
             bool newEpoch = reconcileData.MovementEpoch > _owner.MovementEpoch;
             _suppressReplay = !_owner.AcceptMovementEpoch(reconcileData.MovementEpoch);
-            if (_suppressReplay)
+            if (_suppressReplay) {
+                NetcodeTraceRecorder.Record(_owner, "reconcileRejected", reconcileData.Frame, reason: "stale movement epoch", pass: _traceReplayPass);
                 return;
+            }
             // Frame on the wire is server time. FishNet maps GetTick() into the
             // owning client's local input timeline before invoking reconciliation.
             if (reconcileData.GetTick() != uint.MaxValue)
@@ -190,6 +212,10 @@ namespace Fragsurf.Movement {
             }
 
             MoveData authoritativeState = BuildAuthoritativeMoveData(reconcileData, character, predictedState);
+            NetcodeTraceRecorder.Record(_owner, "predictedHistory", reconcileData.Frame, predictedState,
+                reason: hasPredictedState ? "history found" : "history unavailable", sourceTick: traceSourceTick, pass: _traceReplayPass);
+            NetcodeTraceRecorder.Record(_owner, "authoritativeBaseline", reconcileData.Frame, authoritativeState,
+                reconcileData.LastInput, true, sourceTick: traceSourceTick, pass: _traceReplayPass);
             if (newEpoch)
                 _owner.OnReconciledSpawn(authoritativeState);
 
@@ -218,10 +244,15 @@ namespace Fragsurf.Movement {
 
             UpdateDiagnostics(report, reconcileData.Frame);
             LogCorrectionDecision(report, reconcileData.Frame);
+            NetcodeTraceRecorder.Record(_owner, "correctionDecision", reconcileData.Frame,
+                reason: report.Decision + ": " + report.PrimaryReason + "; baseline always restored by FishNet path",
+                sourceTick: traceSourceTick, pass: _traceReplayPass);
 
             // The gate remains diagnostic. FishNet will replay even when the
             // difference is small, so every reconcile must restore its baseline.
             rollback.RestoreAuthoritativeState(authoritativeState);
+            NetcodeTraceRecorder.Record(_owner, "restored", reconcileData.Frame, _owner.CurrentMoveData,
+                sourceTick: traceSourceTick, pass: _traceReplayPass);
             character.RefreshRuntimeStateFromMoveData();
             ApplySpectatorPresentation(reconcileData.Frame);
         }
@@ -234,6 +265,8 @@ namespace Fragsurf.Movement {
                 return;
 
             _owner.ApplySpectatorPresentationState(presentationState);
+            NetcodeTraceRecorder.Record(_owner, "presentation", presentationState.frame, presentationState,
+                reason: "proxy authoritative interpolation; not equivalent to owner simulation");
             _diagnostics.SpectatorPresentationApplications++;
             _diagnostics.LastSpectatorPresentationFrame = presentationState.frame;
         }

@@ -46,6 +46,7 @@ namespace Fragsurf.Movement {
 
             _builder.Clear();
             _builder.AppendLine("Netcode Diagnostics");
+            _builder.AppendLine(NetcodeTraceRecorder.Status);
 
             if (_networkedCharacter != null) {
                 _builder.Append("Mode: ").AppendLine(_networkedCharacter.UseFishNetPredictionPipeline ? "FishNet Prediction" : "Unknown");

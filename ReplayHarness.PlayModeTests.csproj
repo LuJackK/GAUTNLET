@@ -68,6 +68,7 @@
     <Compile Include="Assets\Tests\ReplayHarness\ReliableCharacterRollbackTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\MovementMotorTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayHarnessEnvironment.cs" />
+    <Compile Include="Assets\Tests\ReplayHarness\NetcodeTraceTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayHarnessBootstrap.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplaySample.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\WorldRollbackHistoryTests.cs" />

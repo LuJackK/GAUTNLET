@@ -61,6 +61,7 @@
     <Analyzer Include="C:\Users\LukaJack\Desktop\GAUTNLET\Assets\FishNet\Runtime\Plugins\CodeAnalysis\FishNet.CodeAnalysis.Analyzers.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\Editor\NetcodeDiagnosticsBuild.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Editor\ReadmeEditor.cs" />
     <Compile Include="Assets\Editor\Environment\AtmosphereAssetBuilder.cs" />
   </ItemGroup>

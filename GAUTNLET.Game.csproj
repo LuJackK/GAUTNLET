@@ -61,6 +61,7 @@
     <Analyzer Include="C:\Users\LukaJack\Desktop\GAUTNLET\Assets\FishNet\Runtime\Plugins\CodeAnalysis\FishNet.CodeAnalysis.Analyzers.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\TraceMovementState.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\EnvironmentInteraction\Ladder.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\RollbackStateHistory.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\SurfController.cs" />
@@ -102,9 +103,11 @@
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupEffectTarget.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Input\InputButtons.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\CloudPoofEffect.cs" />
+    <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\TraceBuildStamp.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupSpawnLocation.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\MoveData.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\NetcodeDiagnosticsHUD.cs" />
+    <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\NetcodeTraceRecorder.cs" />
     <Compile Include="Assets\Scripts\Shared\Physics\Tracer.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\PlayerAiming.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\CharacterRenderer.cs" />
@@ -124,6 +127,7 @@
     <Compile Include="Assets\Scripts\UI\MenuController.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\SurfCharacter.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacterPredictionData.cs" />
+    <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\SessionCaptureCoordinator.cs" />
     <Compile Include="Assets\Scripts\Shared\Physics\Trace.cs" />
     <Compile Include="Assets\Scripts\UI\InGameMenu.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupUpgradeKind.cs" />
