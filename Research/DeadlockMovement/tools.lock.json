@@ -1,0 +1,38 @@
+{
+  "assets": {
+    "cli-macos-x64.zip": {
+      "sha256": "9b430e8233fa498c34c00cf5cf4da48d854c8f255b1208557861802d9e16a19c",
+      "url": "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.0/cli-macos-x64.zip"
+    },
+    "cli-macos-arm64.zip": {
+      "sha256": "fa3fc51ab8ed8c96899a64cf8977c2c4810342605868f37044e85a412ff4e0cd",
+      "url": "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.0/cli-macos-arm64.zip"
+    },
+    "cli-windows-x64.zip": {
+      "sha256": "d32ab327b8bbb42a2528866afb03bb582bdb779d0005488da32b90292afd3ff5",
+      "url": "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.0/cli-windows-x64.zip"
+    },
+    "cli-linux-arm64.zip": {
+      "sha256": "adcfeac823e25ebdaebe0b6c4b3132546afa3978d23fca37bb522da1fe5cb2e5",
+      "url": "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.0/cli-linux-arm64.zip"
+    },
+    "cli-linux-x64.zip": {
+      "sha256": "3e8af47cd6ce52e8068904f2aa1dda23c56a6b96a8310b25090f0711cda76a8a",
+      "url": "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.0/cli-linux-x64.zip"
+    },
+    "cli-linux-arm.zip": {
+      "sha256": "5348f5b6cc2eb5686f15c19b07803b3723977b72b0efe6df5e22baa987279f48",
+      "url": "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.0/cli-linux-arm.zip"
+    },
+    "Source2Viewer.exe": {
+      "sha256": "8d1149516e3f973e1f0d73aa4a73b764d3f6bb44d93ba4b417f8d34af2a2f670",
+      "url": "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.0/Source2Viewer.exe"
+    },
+    "cli-windows-arm64.zip": {
+      "sha256": "df2a52372fee1ce8284abd2cd8a09f65e7259778290b5facfcfa07ef75f4ea1a",
+      "url": "https://github.com/ValveResourceFormat/ValveResourceFormat/releases/download/20.0/cli-windows-arm64.zip"
+    }
+  },
+  "project": "https://github.com/ValveResourceFormat/ValveResourceFormat",
+  "version": "20.0"
+}

@@ -1,0 +1,7 @@
+.tools/
+.downloads/
+.venv/
+local/
+__pycache__/
+*.pyc
+exceptions.txt
