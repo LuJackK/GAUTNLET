@@ -20,6 +20,8 @@ struct State {
   std::array<float, 3> position{}, velocity{};
   std::optional<uint32_t> ground_entity;
   std::optional<uint8_t> move_type;
+  // Ground-dash displacement (CMoveData +0xf4); null while no dash is active.
+  std::optional<std::array<float, 3>> dash_vector;
 };
 
 struct Step {
@@ -56,11 +58,21 @@ template <typename T, size_t N> void Array(std::ostream& out, const std::array<T
   }
   out << ']';
 }
+// DashVectorOf maps CMoveData's unset marker (FLT_MAX in every component) to
+// null, so an inactive dash is never exported as an enormous displacement.
+inline std::optional<std::array<float, 3>> DashVectorOf(const std::array<float, 3>& raw) {
+  constexpr float kUnset = std::numeric_limits<float>::max();
+  if (raw[0] == kUnset && raw[1] == kUnset && raw[2] == kUnset) return std::nullopt;
+  return raw;
+}
 inline void WriteState(std::ostream& out, const State& s) {
   out << "{\"position\":"; Array(out, s.position);
   out << ",\"velocity\":"; Array(out, s.velocity);
   out << ",\"ground_entity\":"; Optional(out, s.ground_entity);
   out << ",\"move_type\":"; Optional(out, s.move_type);
+  out << ",\"dash_vector\":";
+  if (s.dash_vector) Array(out, *s.dash_vector);
+  else out << "null";
   out << '}';
 }
 inline void WriteStep(std::ostream& out, const Step& s) {

@@ -171,6 +171,17 @@ class CaptureTests(unittest.TestCase):
             with self.subTest(missing=name):
                 self.assertFalse(self.report([session(), record, end()])['valid'])
 
+    def test_optional_dash_vector(self):
+        record = step()
+        record['before']['dash_vector'] = None
+        record['after']['dash_vector'] = [9.9, -0.5, 0.0]
+        self.assertTrue(self.report([session(), record, end()])['valid'])
+        for value in ([1.0, 2.0], [1.0, None, 0.0], 'x'):
+            bad = step()
+            bad['after']['dash_vector'] = value
+            with self.subTest(value=value):
+                self.assertFalse(self.report([session(), bad, end()])['valid'])
+
     def test_boundary_values_and_nullable_fields(self):
         record = step(pawn=(1 << 32) - 1, clock_tick=(1 << 64) - 1)
         record['command_raw'] = -(1 << 31)

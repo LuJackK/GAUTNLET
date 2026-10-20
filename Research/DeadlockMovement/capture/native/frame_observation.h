@@ -3,12 +3,23 @@
 #include "recorder_core.h"
 #include "modifier_reader.h"
 #include <iostream>
+#include <cmath>
 #include <cstring>
 #include <sstream>
 #include "modlock/gameinterop/pawn_observer.h"
 #include "modlock/gameinterop/entity_abi.h"
 
 namespace movement_capture {
+// Class and schema field names are identifier characters; escape defensively anyway.
+inline void JsonString(std::ostream& out, const std::string& text) {
+  out << '"';
+  for (const char c : text) {
+    if (c == '"' || c == '\\') out << '\\' << c;
+    else if (static_cast<unsigned char>(c) < 0x20) out << '?';
+    else out << c;
+  }
+  out << '"';
+}
 inline void NullableBool(std::ostream& out, std::optional<bool> value) {
   if (!value) out << "null";
   else out << (*value ? "true" : "false");
@@ -53,6 +64,9 @@ class FrameCapabilities {
     std::cout << ",\"ordinary_mask_bytes\":" << (ordinary_ ? ordinary_->size : 0)
               << ",\"predicted_mask_bytes\":" << (predicted_ ? predicted_->size : 0) << "}" << std::endl;
     sliding_ = field("CCitadel_Ability_Slide", "m_bIsSliding", 1).has_value();
+    friction_ = field("CBaseEntity", "m_flFriction", sizeof(float));
+    services_ = field("CBasePlayerPawn", "m_pMovementServices", sizeof(void*));
+    surface_friction_ = field("CPlayer_MovementServices_Humanoid", "m_flSurfaceFriction", sizeof(float));
     channeling_ = field("CCitadelBaseAbility", "m_bChanneling", 1).has_value();
   }
   std::optional<bool> Modifier(void* pawn, std::optional<int64_t> flag) const {
@@ -62,9 +76,29 @@ class FrameCapabilities {
   std::optional<bool> GroundDash(void* pawn) const { return Modifier(pawn, ground_dash_); }
   std::optional<bool> AirDash(void* pawn) const { return Modifier(pawn, air_dash_); }
   std::optional<bool> Climbing(void* pawn) const { return Modifier(pawn, climbing_); }
+  // Pawn friction coefficient (the slide writes it; 1 otherwise) and the
+  // movement services' surface friction. Unresolved or unreadable is null.
+  std::optional<float> Friction(const void* pawn) const { return ReadFloat(pawn, friction_); }
+  std::optional<float> SurfaceFriction(const void* pawn) const {
+    if (!pawn || !services_ || !surface_friction_) return std::nullopt;
+    const unsigned char* services = nullptr;
+    if (!modlock::gameinterop::ReadNative(static_cast<const unsigned char*>(pawn) + *services_,
+                                          &services, sizeof(services)) || !services)
+      return std::nullopt;
+    return ReadFloat(services, surface_friction_);
+  }
   bool sliding() const { return sliding_; }
   bool channeling() const { return channeling_; }
  private:
+  static std::optional<float> ReadFloat(const void* base, std::optional<size_t> offset) {
+    if (!base || !offset) return std::nullopt;
+    float value = 0;
+    if (!modlock::gameinterop::ReadNative(static_cast<const unsigned char*>(base) + *offset,
+                                          &value, sizeof(value)) || !std::isfinite(value))
+      return std::nullopt;
+    return value;
+  }
+  std::optional<size_t> friction_, services_, surface_friction_;
   bool resolved_ = false, sliding_ = false, channeling_ = false;
   std::optional<size_t> property_;
   std::optional<ModifierMaskField> ordinary_, predicted_;
@@ -100,6 +134,8 @@ inline void WriteFrameFields(std::ostream& out,
   NullableBool(out, ground_dash && air_dash ? std::optional<bool>(*ground_dash || *air_dash) : std::nullopt);
   out << ",\"climbing\":"; NullableBool(out, caps.Climbing(native_pawn));
   out << ",\"mantling\":"; NullableBool(out, mantling);
+  out << ",\"friction\":"; Optional(out, caps.Friction(native_pawn));
+  out << ",\"surface_friction\":"; Optional(out, caps.SurfaceFriction(native_pawn));
   out << ",\"stamina\":";
   if (pawn.stamina) {
     out << "{\"current\":"; Number(out, pawn.stamina->current);
@@ -116,7 +152,19 @@ inline void WriteFrameFields(std::ostream& out,
     out << ",\"cooldown_start\":"; Number(out, a.cooldown_start);
     out << ",\"cooldown_end\":"; Number(out, a.cooldown_end);
     out << ",\"recharge_start\":"; Number(out, a.charge_recharge_start);
-    out << ",\"recharge_end\":"; Number(out, a.charge_recharge_end); out << '}';
+    out << ",\"recharge_end\":"; Number(out, a.charge_recharge_end);
+    out << ",\"class\":";
+    if (a.rtti_class) JsonString(out, *a.rtti_class);
+    else out << "null";
+    out << ",\"fields\":{";
+    bool first_field = true;
+    for (const auto& [name, value] : a.fields) {
+      if (!first_field) out << ',';
+      first_field = false;
+      JsonString(out, name);
+      out << ':'; Number(out, value);
+    }
+    out << "}}";
   }
   out << ']';
 }

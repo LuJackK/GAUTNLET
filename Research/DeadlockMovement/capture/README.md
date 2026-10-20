@@ -249,6 +249,33 @@ Grounded/airborne transitions were observed. The bot did not exercise active
 sliding/dashing: a human dash/slide plus stamina-use calibration remains required
 before advanced experiments. The probe stopped normally; no server was left running.
 
+## Movement-detail fields (20 October upgrade)
+
+Added for the decoded behaviours in [BEHAVIOURS.md](../BEHAVIOURS.md) and the tests in
+[TEST_TRIAGE.md](../TEST_TRIAGE.md). All fields are additive and optional, so earlier captures still validate.
+
+- **Trace** `before`/`after`: `dash_vector`, the `CMoveData` ground-dash displacement (+0xf4,
+  raw offset decoded on build 26059233; re-verify on a new build). It is null while no dash is active (the
+  game stores FLT_MAX). Read before and immediately after the native step, never written.
+- **Frames:** `friction` (`CBaseEntity::m_flFriction`, the coefficient the slide writes; 1 normally) and
+  `surface_friction` (`CPlayer_MovementServices_Humanoid::m_flSurfaceFriction` through
+  `m_pMovementServices`). Both are schema-resolved, with guarded reads; null if unavailable.
+- **Frame abilities:** `class`, the ability's MSVC RTTI class name (vtable → complete object locator →
+  type descriptor, all guarded reads; null if unreadable), and `fields`, the schema-named values for that
+  class. Fields are read only when the RTTI class matches the field's declaring class:
+  - `CCitadel_Ability_Slide`: `m_bIsSliding`, `m_bWantsSlide`, `m_flSpeedAdjust`, `m_flSlideChangeTime`,
+    `m_flSlidingOnFlatStartTime`, `m_flOnGroundStartTime`, `m_flDashSlideStartTime`, `m_flDuckPressedTime`,
+    `m_nJumpsThisSlideSession`, `m_bStartedSlideViaProbeSlope`;
+  - `CCitadel_Ability_Dash`: `m_GroundDashExecuteTime`, `m_flAirDashCastTime`, `m_flAirDashDragStartTime`,
+    `m_nConsecutiveAirDashes`, `m_nConsecutiveDownDashes`, `m_bDownAirDash`, `m_flDashAngle`;
+  - `CCitadel_Ability_Jump`: `m_LastJumpType`, `m_flJumpTime`, `m_flLastOnGroundTime`,
+    `m_nDesiredAirJumpCount`, `m_nExecutedAirJumpCount`, `m_nConsecutiveAirJumps`, `m_bCanDashJump`,
+    `m_bJumped`, `m_bInSlideJump`.
+  A field missing from the loaded schema is skipped, never guessed. Booleans are exported as 0/1.
+
+Frame values are after-frame observations. Do not attach them to earlier movement steps as if
+simultaneous (see above).
+
 ## Source and license
 
 [Modlock pinned source](https://github.com/paralin/modlock/tree/67478b9bbc54ff1f94ccfdb5f9ce0e08dc6f6418)

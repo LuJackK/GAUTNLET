@@ -109,6 +109,8 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
   stack additively. Sliding does not interrupt sprint. Base 7.2 + 1.6 = 8.8 m/s cannot start a flat
   slide (B-SLD-01).
 - **GAUNTLET:** crouch speed 4, accel 8, friction 3, stop 4. Sprint is a hidden field, not simulated.
+- **Lead:** sprint is its own ability class, `CCitadel_Ability_Sprint` (seen through RTTI in the
+  recorder). Decode it with `static_analysis.py vtables` the same way as slide and dash.
 
 ## Air
 

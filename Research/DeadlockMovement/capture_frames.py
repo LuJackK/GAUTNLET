@@ -64,6 +64,10 @@ def _row(record):
     for flag in FLAGS:
         if record[flag] is not None and type(record[flag]) is not bool:
             raise CaptureError(f'{flag} must be a boolean or null')
+    # Optional since the 20 October recorder: pawn and surface friction coefficients.
+    for field in ('friction', 'surface_friction'):
+        if record.get(field) is not None:
+            _number(record[field], field)
     stamina = record['stamina']
     if stamina is not None:
         _required(stamina, ('current', 'max'), 'stamina')
@@ -81,6 +85,18 @@ def _row(record):
             _integer(ability['charges'], 'ability.charges', INT32_MIN, INT32_MAX)
             for field in ('cooldown_start', 'cooldown_end', 'recharge_start', 'recharge_end'):
                 _number(ability[field], 'ability.' + field)
+            # Optional since the 20 October recorder: RTTI class and schema-named fields.
+            if ability.get('class') is not None and not (
+                    isinstance(ability['class'], str) and 0 < len(ability['class']) <= 128):
+                raise CaptureError('ability.class must be a short string or null')
+            fields = ability.get('fields')
+            if fields is not None:
+                if not isinstance(fields, dict):
+                    raise CaptureError('ability.fields must be an object')
+                for key, value in fields.items():
+                    if not key.startswith('m_') or len(key) > 64:
+                        raise CaptureError('ability.fields keys must be schema field names')
+                    _number(value, 'ability.fields.' + key)
 
 
 def validate_frames(path, movement_trace=None, *, movement_report=None):

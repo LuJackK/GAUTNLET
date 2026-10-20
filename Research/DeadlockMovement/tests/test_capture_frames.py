@@ -80,6 +80,19 @@ class FrameTests(unittest.TestCase):
         self.assertEqual(report['markers'][0]['event'], 'start')
         self.assertEqual(report['worlds'][0]['callback_clock_span_s'], 0)
 
+    def test_optional_friction_and_ability_class_fields(self):
+        slide = {**ability(), 'class': 'CCitadel_Ability_Slide',
+                 'fields': {'m_bIsSliding': 1, 'm_flSpeedAdjust': 207.1}}
+        row = {**frame(), 'friction': 0.8, 'surface_friction': None, 'abilities': [slide]}
+        self.assertTrue(self.report([frame_header(), row, frame_end()])['valid'])
+        for name, value in (('class', 7), ('class', ''), ('fields', []),
+                            ('fields', {'bad': 1}), ('fields', {'m_flX': 'x'})):
+            bad = {**frame(), 'abilities': [{**ability(), name: value}]}
+            with self.subTest(name=name, value=value):
+                self.assertFalse(self.report([frame_header(), bad, frame_end()])['valid'])
+        bad = {**frame(), 'friction': 'x'}
+        self.assertFalse(self.report([frame_header(), bad, frame_end()])['valid'])
+
     def test_no_physical_availability_or_readiness_inference(self):
         row = frame()
         row.update(grounded=True, ground_entity=None, velocity=None,

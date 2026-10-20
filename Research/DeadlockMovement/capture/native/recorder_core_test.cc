@@ -132,5 +132,18 @@ int main(int argc, char** argv) {
     fixture << out.str();
     Require(static_cast<bool>(fixture), "fixture output");
   }
+  constexpr float kUnset = std::numeric_limits<float>::max();
+  Require(!movement_capture::DashVectorOf({kUnset, kUnset, kUnset}), "unset dash vector is null");
+  Require(movement_capture::DashVectorOf({kUnset, 0, 0}).has_value(), "partial dash vector is kept");
+  movement_capture::State dashing;
+  dashing.dash_vector = std::array<float, 3>{9.5f, 0, 0};
+  std::ostringstream state_out;
+  movement_capture::WriteState(state_out, dashing);
+  Require(state_out.str().find("\"dash_vector\":[9.5,0,0]") != std::string::npos,
+          "dash vector serialised");
+  std::ostringstream idle_out;
+  movement_capture::WriteState(idle_out, movement_capture::State{});
+  Require(idle_out.str().find("\"dash_vector\":null") != std::string::npos,
+          "inactive dash serialised as null");
   std::cout << "capture core tests passed\n";
 }

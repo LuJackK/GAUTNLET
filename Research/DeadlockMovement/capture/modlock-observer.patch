@@ -21,10 +21,20 @@ index b8418d6..52dc09c 100644
  # disk; it runs on any host, so it carries its own copy of the decoder.
  add_executable(modlock-sigcheck src/sigcheck/main.cc third_party/safetyhook/Zydis.c)
 diff --git a/include/modlock/gameinterop/movement_hook.h b/include/modlock/gameinterop/movement_hook.h
-index c96570c..63af6bc 100644
+index c96570c..532a0a1 100644
 --- a/include/modlock/gameinterop/movement_hook.h
 +++ b/include/modlock/gameinterop/movement_hook.h
-@@ -56,6 +56,11 @@ class MODLOCK_API MovementHook {
+@@ -42,6 +42,9 @@ struct MovementCall {
+   std::array<float, 3> origin{};
+   std::array<float, 3> velocity{};
+   uint32_t ground_entity = 0;
++  // dash_vector is CMoveData's ground-dash displacement (+0xf4); FLT_MAX in
++  // every component while no dash is active. Observed only, never written.
++  std::array<float, 3> dash_vector{};
+ };
+ 
+ // MovementHook detours the native ProcessMovement of one game module. The
+@@ -56,6 +59,11 @@ class MODLOCK_API MovementHook {
   public:
    enum class Module { kServer, kClient };
    using Handler = std::function<bool(MovementCall&)>;
@@ -36,7 +46,7 @@ index c96570c..63af6bc 100644
  
    // kJumpButton is the native InButtonState bit for jump.
    static constexpr uint64_t kJumpButton = 1u << 1;
-@@ -72,6 +77,8 @@ class MODLOCK_API MovementHook {
+@@ -72,6 +80,8 @@ class MODLOCK_API MovementHook {
    MovementHook& operator=(const MovementHook&) = delete;
  
   private:
@@ -45,8 +55,38 @@ index c96570c..63af6bc 100644
    struct Impl;
    explicit MovementHook(std::unique_ptr<Impl> impl);
    std::unique_ptr<Impl> impl_;
+diff --git a/include/modlock/gameinterop/pawn_observer.h b/include/modlock/gameinterop/pawn_observer.h
+index 767ae7d..8f3e56b 100644
+--- a/include/modlock/gameinterop/pawn_observer.h
++++ b/include/modlock/gameinterop/pawn_observer.h
+@@ -163,6 +163,14 @@ struct AbilityLayout {
+   std::optional<size_t> channeling;
+   std::optional<size_t> sliding;
+   std::optional<size_t> mantle_start_time;
++  // Movement-research fields, read only from abilities whose RTTI class matches.
++  struct ClassField {
++    std::string class_name;  // e.g. CCitadel_Ability_Slide
++    std::string field;       // schema field name, exported as the JSON key
++    size_t offset = 0;
++    uint8_t kind = 0;        // 0 float32, 1 int32, 2 int8, 3 bool, 4 uint32
++  };
++  std::vector<ClassField> class_fields;
+   size_t upgrade_info = 0;
+   size_t charges = 0;
+   size_t cooldown_end = 0;
+@@ -376,6 +384,10 @@ class MODLOCK_API PawnObserver {
+     bool channeling = false;
+     bool sliding = false;
+     std::optional<float> mantle_start_time;
++    // rtti_class is the MSVC RTTI class name of the ability entity, when readable.
++    std::optional<std::string> rtti_class;
++    // fields holds class_fields values for the matching class, in layout order.
++    std::vector<std::pair<std::string, double>> fields;
+   };
+ 
+   // SelectPlayer reborrows the connected controller after every native callback.
 diff --git a/src/gameinterop/movement_hook.cc b/src/gameinterop/movement_hook.cc
-index b86b6ac..78e7b8b 100644
+index b86b6ac..ff26cbd 100644
 --- a/src/gameinterop/movement_hook.cc
 +++ b/src/gameinterop/movement_hook.cc
 @@ -1,4 +1,5 @@
@@ -55,7 +95,16 @@ index b86b6ac..78e7b8b 100644
  
  #include <cstdio>
  #include <cstring>
-@@ -76,6 +77,7 @@ struct Hook {
+@@ -23,6 +24,8 @@ constexpr size_t kMoveVelocity = 0x38;
+ constexpr size_t kMoveOrigin = 0xc8;
+ constexpr size_t kMoveTicks = 0xd4;
+ constexpr size_t kMoveFractions = 0xdc;
++// Ground-dash displacement for this step, decoded on the 20 October 2026 build.
++constexpr size_t kMoveDashVector = 0xf4;
+ 
+ // InButtonState begins with its vtable, followed by held, changed and scroll masks.
+ constexpr size_t kButtonStates = 0x08;
+@@ -76,6 +79,7 @@ struct Hook {
    const char* entity_class = nullptr;
    const char* pawn_class = nullptr;
    MovementHook::Handler* handler = nullptr;
@@ -63,7 +112,12 @@ index b86b6ac..78e7b8b 100644
  #if defined(_WIN32)
    safetyhook::InlineHook* detour = nullptr;
  #endif
-@@ -136,6 +138,20 @@ void Dispatch(Hook& hook, void* services, void* data) {
+@@ -132,10 +136,26 @@ void Dispatch(Hook& hook, void* services, void* data) {
+   Read(move, kMoveFractions, call.fractions);
+   Read(move, kMoveOrigin, call.origin);
+   Read(move, kMoveVelocity, call.velocity);
++  Read(move, kMoveDashVector, call.dash_vector);
+   if (call.pawn) {
      Read(static_cast<const unsigned char*>(call.pawn), hook.layout->ground, call.ground_entity);
      Read(static_cast<const unsigned char*>(call.pawn), hook.layout->move_type, call.move_type);
    }
@@ -73,6 +127,7 @@ index b86b6ac..78e7b8b 100644
 +        [&](MovementCall& after) {
 +          Read(move, kMoveOrigin, after.origin);
 +          Read(move, kMoveVelocity, after.velocity);
++          Read(move, kMoveDashVector, after.dash_vector);
 +          if (after.pawn) {
 +            Read(static_cast<const unsigned char*>(after.pawn), hook.layout->ground, after.ground_entity);
 +            Read(static_cast<const unsigned char*>(after.pawn), hook.layout->move_type, after.move_type);
@@ -84,7 +139,7 @@ index b86b6ac..78e7b8b 100644
    // The handler may rewrite buttons even when it leaves movement native. The
    // native step always runs for its per-command bookkeeping, which client
    // prediction requires; a replacement result then overwrites its motion.
-@@ -170,6 +186,7 @@ void ClientThunk(void* services, void* data) { Dispatch(g_hooks[1], services, da
+@@ -170,6 +190,7 @@ void ClientThunk(void* services, void* data) { Dispatch(g_hooks[1], services, da
  struct MovementHook::Impl {
    Hook* hook = nullptr;
    Handler handler;
@@ -92,7 +147,7 @@ index b86b6ac..78e7b8b 100644
  #if defined(_WIN32)
    safetyhook::InlineHook detour;
  #endif
-@@ -190,9 +207,18 @@ MovementHook& MovementHook::operator=(MovementHook&&) noexcept = default;
+@@ -190,9 +211,18 @@ MovementHook& MovementHook::operator=(MovementHook&&) noexcept = default;
  MovementHook::~MovementHook() = default;
  
  std::expected<MovementHook, std::string> MovementHook::Install(Module module, Handler handler) {
@@ -112,7 +167,7 @@ index b86b6ac..78e7b8b 100644
    const auto image =
        MappedModuleImage::ForModule(module == Module::kServer ? L"server.dll" : L"client.dll");
    if (!image) return std::unexpected(image.error());
-@@ -200,11 +226,13 @@ std::expected<MovementHook, std::string> MovementHook::Install(Module module, Ha
+@@ -200,11 +230,13 @@ std::expected<MovementHook, std::string> MovementHook::Install(Module module, Ha
    if (!target) return std::unexpected(target.error());
    auto impl = std::make_unique<Impl>();
    impl->handler = std::move(handler);
@@ -127,7 +182,7 @@ index b86b6ac..78e7b8b 100644
    hook.detour = &impl->detour;
    impl->hook = &hook;
    if (!impl->detour.enable()) return std::unexpected("cannot enable native movement hook");
-@@ -212,6 +240,7 @@ std::expected<MovementHook, std::string> MovementHook::Install(Module module, Ha
+@@ -212,6 +244,7 @@ std::expected<MovementHook, std::string> MovementHook::Install(Module module, Ha
  #else
    (void)module;
    (void)handler;
@@ -135,3 +190,114 @@ index b86b6ac..78e7b8b 100644
    return std::unexpected("native movement replacement requires Windows");
  #endif
  }
+diff --git a/src/gameinterop/pawn_observer.cc b/src/gameinterop/pawn_observer.cc
+index 830275b..a0a26c6 100644
+--- a/src/gameinterop/pawn_observer.cc
++++ b/src/gameinterop/pawn_observer.cc
+@@ -9,6 +9,7 @@
+ #include "modlock/gameinterop/entity_abi.h"
+ #include "modlock/gameinterop/mapped_module_image.h"
+ #include "modlock/gameinterop/native_damage.h"
++#include "modlock/gameinterop/native_memory.h"
+ 
+ #if defined(_WIN32)
+ #include <windows.h>
+@@ -376,9 +377,72 @@ std::expected<AbilityLayout, std::string> ResolveAbilityLayout() {
+       SchemaFieldOf(*schema, "server.dll", "CCitadel_Ability_Mantle", "m_flStartTime");
+   if (mantle_start && mantle_start->size >= sizeof(float))
+     layout.mantle_start_time = mantle_start->offset;
++  // Movement-research fields. A missing field is skipped, never guessed.
++  struct WantedClassField {
++    const char* type;
++    const char* name;
++    uint8_t kind;
++    size_t minimum;
++  };
++  static constexpr WantedClassField kClassFields[] = {
++      {"CCitadel_Ability_Slide", "m_bIsSliding", 3, 1},
++      {"CCitadel_Ability_Slide", "m_bWantsSlide", 3, 1},
++      {"CCitadel_Ability_Slide", "m_flSpeedAdjust", 0, 4},
++      {"CCitadel_Ability_Slide", "m_flSlideChangeTime", 0, 4},
++      {"CCitadel_Ability_Slide", "m_flSlidingOnFlatStartTime", 0, 4},
++      {"CCitadel_Ability_Slide", "m_flOnGroundStartTime", 0, 4},
++      {"CCitadel_Ability_Slide", "m_flDashSlideStartTime", 0, 4},
++      {"CCitadel_Ability_Slide", "m_flDuckPressedTime", 0, 4},
++      {"CCitadel_Ability_Slide", "m_nJumpsThisSlideSession", 1, 4},
++      {"CCitadel_Ability_Slide", "m_bStartedSlideViaProbeSlope", 3, 1},
++      {"CCitadel_Ability_Dash", "m_GroundDashExecuteTime", 0, 4},
++      {"CCitadel_Ability_Dash", "m_flAirDashCastTime", 0, 4},
++      {"CCitadel_Ability_Dash", "m_flAirDashDragStartTime", 0, 4},
++      {"CCitadel_Ability_Dash", "m_nConsecutiveAirDashes", 2, 1},
++      {"CCitadel_Ability_Dash", "m_nConsecutiveDownDashes", 2, 1},
++      {"CCitadel_Ability_Dash", "m_bDownAirDash", 3, 1},
++      {"CCitadel_Ability_Dash", "m_flDashAngle", 0, 4},
++      {"CCitadel_Ability_Jump", "m_LastJumpType", 2, 1},
++      {"CCitadel_Ability_Jump", "m_flJumpTime", 0, 4},
++      {"CCitadel_Ability_Jump", "m_flLastOnGroundTime", 0, 4},
++      {"CCitadel_Ability_Jump", "m_nDesiredAirJumpCount", 1, 4},
++      {"CCitadel_Ability_Jump", "m_nExecutedAirJumpCount", 1, 4},
++      {"CCitadel_Ability_Jump", "m_nConsecutiveAirJumps", 2, 1},
++      {"CCitadel_Ability_Jump", "m_bCanDashJump", 3, 1},
++      {"CCitadel_Ability_Jump", "m_bJumped", 3, 1},
++      {"CCitadel_Ability_Jump", "m_bInSlideJump", 3, 1},
++  };
++  for (const auto& wanted : kClassFields) {
++    const auto field = SchemaFieldOf(*schema, "server.dll", wanted.type, wanted.name);
++    if (!field || field->size < wanted.minimum) continue;
++    layout.class_fields.push_back(AbilityLayout::ClassField{
++        .class_name = wanted.type, .field = wanted.name, .offset = field->offset,
++        .kind = wanted.kind});
++  }
+   return layout;
+ }
+ 
++// RttiClassName reads an object's MSVC x64 RTTI: vtable[-1] is the complete
++// object locator, whose self RVA gives the image base and whose type descriptor
++// holds the decorated name ".?AVName@@". Every read is guarded; any mismatch
++// yields no name rather than a guess.
++std::optional<std::string> RttiClassName(const void* object) {
++  const unsigned char* vtable = nullptr;
++  if (!ReadNative(object, &vtable, sizeof(vtable)) || !vtable) return std::nullopt;
++  const unsigned char* locator = nullptr;
++  if (!ReadNative(vtable - sizeof(void*), &locator, sizeof(locator)) || !locator) return std::nullopt;
++  uint32_t header[6] = {};
++  if (!ReadNative(locator, header, sizeof(header)) || header[0] != 1) return std::nullopt;
++  const unsigned char* base = locator - header[5];
++  char name[160] = {};
++  if (!ReadNative(base + header[3] + 16, name, sizeof(name) - 1)) return std::nullopt;
++  const std::string_view text(name);
++  if (!text.starts_with(".?AV")) return std::nullopt;
++  const auto end = text.find("@@");
++  if (end == std::string_view::npos || end <= 4) return std::nullopt;
++  return std::string(text.substr(4, end - 4));
++}
++
+ // ResolveStaminaLayout resolves the pawn's inline stamina resource floats
+ // through the game's schema system. AbilityResource_t is the value type of
+ // CCitadelAbilityComponent::m_ResourceStamina; its offsets are relative to the
+@@ -1309,6 +1373,25 @@ PawnObserver::CurrentAbilitiesForSlot(int32_t slot) {
+       if (std::isfinite(start)) ability.mantle_start_time = start;
+     }
+     if (ability.slot == 0xD && layout.sliding) ability.sliding = entity[*layout.sliding] == 1;
++    if (!layout.class_fields.empty()) {
++      ability.rtti_class = RttiClassName(entity);
++      if (ability.rtti_class) {
++        for (const auto& field : layout.class_fields) {
++          if (field.class_name != *ability.rtti_class) continue;
++          double value = 0;
++          switch (field.kind) {
++            case 0: { float v = 0; std::memcpy(&v, entity + field.offset, sizeof(v));
++                      if (!std::isfinite(v)) continue; value = v; break; }
++            case 1: { int32_t v = 0; std::memcpy(&v, entity + field.offset, sizeof(v)); value = v; break; }
++            case 2: { int8_t v = 0; std::memcpy(&v, entity + field.offset, sizeof(v)); value = v; break; }
++            case 3: value = entity[field.offset] == 1 ? 1 : 0; break;
++            case 4: { uint32_t v = 0; std::memcpy(&v, entity + field.offset, sizeof(v)); value = v; break; }
++            default: continue;
++          }
++          ability.fields.emplace_back(field.field, value);
++        }
++      }
++    }
+     if (ability.slot == 0xC && layout.consecutive_wall_jumps) {
+       int8_t count = 0;
+       std::memcpy(&count, entity + *layout.consecutive_wall_jumps, sizeof(count));

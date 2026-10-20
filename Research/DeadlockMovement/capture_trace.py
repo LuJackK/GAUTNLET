@@ -71,6 +71,9 @@ def _state(record, name):
     _vector(record['velocity'], f'{name}.velocity', 3)
     _integer(record['ground_entity'], f'{name}.ground_entity', 0, UINT32_MAX, nullable=True)
     _integer(record['move_type'], f'{name}.move_type', 0, 255, nullable=True)
+    # Optional since the 20 October recorder: CMoveData ground-dash displacement, null when inactive.
+    if record.get('dash_vector') is not None:
+        _vector(record['dash_vector'], f'{name}.dash_vector', 3)
 
 
 def _session(record):

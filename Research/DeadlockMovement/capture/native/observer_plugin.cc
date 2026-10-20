@@ -37,6 +37,7 @@ movement_capture::State StateOf(const MovementCall& call) {
   movement_capture::State state;
   state.position = call.origin;
   state.velocity = call.velocity;
+  state.dash_vector = movement_capture::DashVectorOf(call.dash_vector);
   if (call.pawn) {
     state.ground_entity = call.ground_entity;
     state.move_type = call.move_type;

@@ -22,6 +22,18 @@ needed · *capture* = new Deadlock recording · *unity* = GAUNTLET test after th
 
 ## Recorder prerequisites (P0, before capturing)
 
+**Status 2026-10-20: implemented and smoke-tested.** Built from the regenerated
+`capture/modlock-observer.patch`; native tests, the synthetic lifecycle check and a live bot probe
+(`local/captures/solo-smoke-20261020-01`, 1,290 frames, no losses) pass. In the probe, every ability
+resolved its RTTI class, and all 26 slide, dash and jump fields populated. `friction` and
+`surface_friction` read 1 and `dash_vector` stayed null, because the bot never slid or dashed.
+**First trial of the session (T00):** one flat dash, then one dash-slide. Confirm that `dash_vector` is
+non-null during the dash, that `friction` changes during the slide (0.175 → 0.8), and that
+`m_bIsSliding`, `m_flSpeedAdjust`, `m_GroundDashExecuteTime` move as expected. See
+[the recorder guide](capture/README.md#movement-detail-fields-20-october-upgrade).
+
+Original requirement:
+
 Add these to the observer from the decoded layouts (offsets from build 26059233 `types.json`; resolve
 by schema name, not hard-coded offsets):
 
