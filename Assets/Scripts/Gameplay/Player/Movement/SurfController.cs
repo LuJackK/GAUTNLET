@@ -4,7 +4,7 @@ using Fragsurf.TraceUtil;
 namespace Fragsurf.Movement {
     // All persistent gameplay state belongs to MoveData. This controller may be
     // recreated between any two ticks without changing the result.
-    public class SurfController {
+    public partial class SurfController {
         public Transform playerTransform;
         public Transform camera;
         public float cameraYPos;
@@ -19,6 +19,11 @@ namespace Fragsurf.Movement {
             _surfer = surfer;
             MoveData s = surfer.moveData;
             if (dt <= 0f) return;
+            // Heavy melee is GAUNTLET's own mechanic and keeps the legacy rules in both models.
+            if (config.movementModel == MovementModel.Deadlock && s.moveType != MoveType.HeavyMelee) {
+                ProcessDeadlockMovement(surfer, config, dt);
+                return;
+            }
             s.underwater = s.cameraUnderwater = s.climbingLadder = false;
             s.dashTimer = Mathf.Max(0f, s.dashTimer - dt);
             s.dashCooldownTimer = Mathf.Max(0f, s.dashCooldownTimer - dt);

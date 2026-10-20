@@ -52,12 +52,16 @@ namespace Fragsurf.Movement {
         public int jumpCount;
         public int jumpTimer;
         public int coyoteTimer;
+        public TraceVector dashDirection;
+        public bool airDashing;
         public bool slideRequested;
         public bool sliding;
         public bool wasSliding;
         public int slideSpeedCurrent;
         public TraceVector slideDirection;
         public int slideDelay;
+        public int dashSlideTimer;
+        public int slideGraceTimer;
         public int slopeLimit;
         public int rigidbodyPushForce;
         public int defaultHeight;
@@ -140,12 +144,16 @@ namespace Fragsurf.Movement {
             jumpCount = s.jumpCount,
             jumpTimer = Bits(s.jumpTimer),
             coyoteTimer = Bits(s.coyoteTimer),
+            dashDirection = TraceVector.Copy(s.dashDirection),
+            airDashing = s.airDashing,
             slideRequested = s.slideRequested,
             sliding = s.sliding,
             wasSliding = s.wasSliding,
             slideSpeedCurrent = Bits(s.slideSpeedCurrent),
             slideDirection = TraceVector.Copy(s.slideDirection),
             slideDelay = Bits(s.slideDelay),
+            dashSlideTimer = Bits(s.dashSlideTimer),
+            slideGraceTimer = Bits(s.slideGraceTimer),
             slopeLimit = Bits(s.slopeLimit),
             rigidbodyPushForce = Bits(s.rigidbodyPushForce),
             defaultHeight = Bits(s.defaultHeight),

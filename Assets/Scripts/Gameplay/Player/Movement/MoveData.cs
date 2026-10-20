@@ -63,6 +63,10 @@ namespace Fragsurf.Movement {
         public int jumpCount = 0;
         public float jumpTimer = 0f;
         public float coyoteTimer = 0f;
+        // Deadlock movement model: fixed world direction of the active dash, and
+        // whether that dash started airborne (air dashes accelerate; ground dashes hold speed).
+        public Vector3 dashDirection = Vector3.zero;
+        public bool airDashing = false;
 
         // Sliding
         public bool slideRequested = false;
@@ -71,6 +75,9 @@ namespace Fragsurf.Movement {
         public float slideSpeedCurrent = 0f;
         public Vector3 slideDirection = Vector3.forward;
         public float slideDelay = 0f;
+        // Deadlock movement model: remaining dash-slide and start-of-slide friction windows.
+        public float dashSlideTimer = 0f;
+        public float slideGraceTimer = 0f;
 
 
         public float slopeLimit = 45f;

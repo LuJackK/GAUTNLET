@@ -1121,6 +1121,8 @@ namespace Fragsurf.Movement {
             state.wasSliding = false;
             state.slideSpeedCurrent = 0f;
             state.slideDirection = Vector3.zero;
+            state.dashSlideTimer = 0f;
+            state.slideGraceTimer = 0f;
         }
 
         public bool IsParrying {

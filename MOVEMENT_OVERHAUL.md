@@ -91,3 +91,60 @@ The requested movement direction is consistent with Deadlock's documented slide-
 Melee charge now hovers using the existing reconciled melee phase, with no new network fields or Rigidbody gravity toggles. The Animator retains its parameter names and types. The previously missing MeleeLunge trigger is now declared; the charge-to-lunge transition continues to use MeleeCharging=false and MeleeLunging=true. Its 0.25-second blend is unchanged. A same-tick dash-jump now emits DashDone as well as Dash. VFX and audio retain their existing state/event inputs.
 
 Follow-up validation: **44 PlayMode tests passed, 0 failed** in an isolated project copy using Unity 6000.3.2f1. Results: TestResults/movement-compatibility.xml. Added coverage for charge hover while rising/falling, gravity resumption, snapshot replay, all 17 player Animator parameter names/types, and melee/slide/dash presentation state.
+
+## Deadlock movement model (October 2026)
+
+A second movement model reproduces Deadlock's movement rules as recovered in
+`Research/DeadlockMovement/` (static analysis of the game plus capture checks; see `BEHAVIOURS.md` there
+for each rule by ID). Legacy remains the code default, so existing assets and tests are unchanged.
+
+**To try it:** on `Assets/Prefabs/Player 1.prefab`, SurfCharacter > Movement Config > Movement model,
+set **Movement Model = Deadlock**. Values are under **Deadlock**, in metres and seconds (1 Deadlock
+unit = 0.0254 m). Defaults are Deadlock's base hero; tooltips give Mina's values where they differ. Use
+identical settings on client and server.
+
+Included, each confirmed against Deadlock captures unless marked:
+
+- Ground friction (Source law, stop speed 2.54 m/s, friction 4) and acceleration (hero acceleration 4,
+  using at least 10.16 m/s as wish speed), friction before acceleration. Walk 7.2 m/s, crouch 4.75 m/s.
+- Gravity 20.32 m/s², ground jump 7.62 m/s, late jump within 0.15 s of walking off (falling only, free).
+- Air jump: vertical speed set to 13.335 m/s, plus up to 5.08 m/s added along the input direction;
+  1 stamina.
+- Ground dash: discards existing velocity, holds distance / duration (10 m / 0.68 s) along the input
+  direction relative to the view, no friction or input during it; ground friction afterwards.
+- Air dash: air acceleration toward the dash direction with a target speed of distance / duration
+  (8 m / 0.47 s) shrinking to 20% over the dash, at 60% of air acceleration; existing momentum is kept;
+  vertical speed held near zero and gravity off for the dash.
+- Air drag 0.2 (same law as friction).
+- Slides: start at 8.89 m/s on flat ground (6.35 m/s while ground dashing, or on a downhill slope of 8°
+  or more), end below 4.32 m/s on flat ground or when crouch is released. Deceleration is ground
+  friction with a slide coefficient: 0.175 for 1 s after a dash-slide, otherwise 0.05 for the first
+  0.6 s (0.75 s when landing into the slide; grace is decoded, not yet capture-tested), then 0.8.
+  Crouched wish speed still accelerates, so a slide held with forward settles at crouch speed.
+- Dash-slide: crouching at least 0.3 s into a ground dash sets speed to 16.51 m/s, earlier to 11.43 m/s.
+- Stamina: 3 bars, 1/4.5 bars per second; dash, air dash and air jump cost 1.
+- Decoded but not yet capture-tested: air strafing (Source air acceleration with a wish-speed cap of
+  2.03 m/s, easing to 1.27 m/s above 15–20 m/s carried speed) and slide slope acceleration/friction.
+
+Not included yet: dash-jump (deprioritised), down dash, sprint, landing and sprint slide boosts,
+slide steering, slide jump air drag, wall jump, wall slide and mantle. Heavy melee and parry use the
+legacy rules in both models. A ground dash carried off a ledge keeps its speed with gravity on
+(not capture-tested). Legacy fields such as `walkSpeed`, `friction`, `jumpForce`, `dashImpulse`,
+`slideDrag` and `airControlAcceleration` are ignored in the Deadlock model.
+
+New rollback state: `MoveData.dashDirection`, `airDashing`, `dashSlideTimer`, `slideGraceTimer`. They are
+cloned, reconciled, serialized (world movement wire version 3) and traced. Respawn resets them.
+
+Tests: `Assets/Tests/ReplayHarness/DeadlockMovementTests.cs` runs at Deadlock's 64 Hz with Mina's values
+and asserts the measured capture numbers (for example 25 u/s per walk tick, 23 ticks to 95% walk
+speed, 34 ticks to stop, 287.5 u/s after a jump tick, a 635 u/s dash, a 68.66 u/s first air-dash tick,
+642.89 / 445.08 u/s dash-slide entry).
+
+Validated October 21, 2026 with Unity 6000.3.2f1 in batch mode on the project: **107 PlayMode tests
+passed, 0 failed** (92 existing, unchanged, plus 15 Deadlock-model tests). Results:
+`TestResults/deadlock-port-03.xml` (local). Feel, multiplayer latency and the decoded-only parts (air
+strafing, slide slopes, slide grace) still need playtesting and capture checks.
+
+Found while testing: the ground sweep does not detect a 400 m floor box (the character oscillates a
+few millimetres above it) in both models, while a 200 m box works. Large single floor colliders in
+levels may break grounding; worth checking on the real maps.

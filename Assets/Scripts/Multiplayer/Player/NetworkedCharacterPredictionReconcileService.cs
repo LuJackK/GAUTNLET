@@ -130,6 +130,8 @@ namespace Fragsurf.Movement {
                 JumpCount = (state != null) ? state.jumpCount : 0,
                 JumpTimer = (state != null) ? state.jumpTimer : 0f,
                 CoyoteTimer = (state != null) ? state.coyoteTimer : 0f,
+                DashDirection = (state != null) ? state.dashDirection : Vector3.zero,
+                AirDashing = BoolToByte(state != null && state.airDashing),
                 Grounded = BoolToByte(state != null && state.grounded),
                 GroundedTemp = BoolToByte(state != null && state.groundedTemp),
                 Jumping = BoolToByte(state != null && state.jumping),
@@ -151,6 +153,8 @@ namespace Fragsurf.Movement {
                 SlideSpeedCurrent = (state != null) ? state.slideSpeedCurrent : 0f,
                 SlideDirection = (state != null) ? state.slideDirection : Vector3.zero,
                 SlideDelay = (state != null) ? state.slideDelay : 0f,
+                DashSlideTimer = (state != null) ? state.dashSlideTimer : 0f,
+                SlideGraceTimer = (state != null) ? state.slideGraceTimer : 0f,
                 DashStartedThisFrame = BoolToByte(state != null && state.dashStartedThisFrame),
                 DoubleJumpedThisFrame = BoolToByte(state != null && state.doubleJumpedThisFrame),
                 MeleeHitThisFrame = BoolToByte(state != null && state.meleeHitThisFrame),
@@ -313,6 +317,8 @@ namespace Fragsurf.Movement {
             state.jumpCount = reconcileData.JumpCount;
             state.jumpTimer = reconcileData.JumpTimer;
             state.coyoteTimer = reconcileData.CoyoteTimer;
+            state.dashDirection = reconcileData.DashDirection;
+            state.airDashing = ByteToBool(reconcileData.AirDashing);
             state.grounded = ByteToBool(reconcileData.Grounded);
             state.groundedTemp = ByteToBool(reconcileData.GroundedTemp);
             state.jumping = ByteToBool(reconcileData.Jumping);
@@ -334,6 +340,8 @@ namespace Fragsurf.Movement {
             state.slideSpeedCurrent = reconcileData.SlideSpeedCurrent;
             state.slideDirection = reconcileData.SlideDirection;
             state.slideDelay = reconcileData.SlideDelay;
+            state.dashSlideTimer = reconcileData.DashSlideTimer;
+            state.slideGraceTimer = reconcileData.SlideGraceTimer;
             state.dashStartedThisFrame = ByteToBool(reconcileData.DashStartedThisFrame);
             state.doubleJumpedThisFrame = ByteToBool(reconcileData.DoubleJumpedThisFrame);
             state.meleeHitThisFrame = ByteToBool(reconcileData.MeleeHitThisFrame);
@@ -594,6 +602,8 @@ namespace Fragsurf.Movement {
                 state.slideSpeedCurrent = Mathf.Lerp(from.slideSpeedCurrent, to.slideSpeedCurrent, t);
                 state.slideDirection = Vector3.Lerp(from.slideDirection, to.slideDirection, t);
                 state.slideDelay = Mathf.Lerp(from.slideDelay, to.slideDelay, t);
+                state.dashSlideTimer = Mathf.Lerp(from.dashSlideTimer, to.dashSlideTimer, t);
+                state.slideGraceTimer = Mathf.Lerp(from.slideGraceTimer, to.slideGraceTimer, t);
                 state.meleeTimer = Mathf.Lerp(from.meleeTimer, to.meleeTimer, t);
                 state.meleeCooldownTimer = Mathf.Lerp(from.meleeCooldownTimer, to.meleeCooldownTimer, t);
                 state.meleeHoldTimer = Mathf.Lerp(from.meleeHoldTimer, to.meleeHoldTimer, t);

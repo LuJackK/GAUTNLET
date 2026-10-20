@@ -12,41 +12,42 @@ behaviour as such.
 agrees) · `located` (code found, not read) · `configured` (only vdata/convar values known)
 · `observed` (seen in captures or play, no rule) · `unknown`.
 
-**Port status:** `not started` · `specified` (Unity design written) · `implemented` ·
+**Port status** (Unity: `MovementConfig.movementModel = Deadlock`, `SurfController.Deadlock.cs`, tests in
+`Assets/Tests/ReplayHarness/DeadlockMovementTests.cs`): `not started` · `specified` (Unity design written) · `implemented` ·
 `validated` (Unity trace matches a Deadlock capture within the agreed tolerance).
 
 ## Index
 
 | ID | Behaviour | Deadlock | GAUNTLET now | Port |
 | --- | --- | --- | --- | --- |
-| B-GND-01 | Ground friction | confirmed | same law, different values | not started |
-| B-GND-02 | Ground accelerate | confirmed | Source accelerate, no min-speed clamp | not started |
-| B-GND-03 | Tick order | decoded | friction then accelerate | not started |
-| B-GND-04 | Crouch walking | confirmed (crouch speed) | separate crouch speed/accel/friction | not started |
+| B-GND-01 | Ground friction | confirmed | same law, different values | implemented |
+| B-GND-02 | Ground accelerate | confirmed | Source accelerate, no min-speed clamp | implemented |
+| B-GND-03 | Tick order | decoded | friction then accelerate | implemented |
+| B-GND-04 | Crouch walking | confirmed (crouch speed) | separate crouch speed/accel/friction | implemented |
 | B-GND-05 | Sprint | configured | hidden, unused | not started |
-| B-AIR-01 | Gravity | confirmed | constant, suspended while dashing | not started |
-| B-AIR-02 | Air accelerate | decoded | custom steer + accelerate | not started |
-| B-AIR-03 | Air drag | confirmed | none | not started |
-| B-JMP-01 | Ground jump | confirmed | set vy, auto-bhop, beats slide | not started |
-| B-JMP-02 | Air (double) jump | confirmed | set vy after 0.2 s, costs stamina | not started |
-| B-JMP-03 | Late jump (coyote) | confirmed | 0.1 s grace | not started |
-| B-DSH-01 | Ground dash | confirmed | velocity set to max(speed, 20 m/s) | not started |
-| B-DSH-02 | Air dash | confirmed | velocity set to max(speed, 25 m/s), once per air time | not started |
+| B-AIR-01 | Gravity | confirmed | constant, suspended while dashing | implemented |
+| B-AIR-02 | Air accelerate | decoded | custom steer + accelerate | implemented |
+| B-AIR-03 | Air drag | confirmed | none | implemented |
+| B-JMP-01 | Ground jump | confirmed | set vy, auto-bhop, beats slide | implemented |
+| B-JMP-02 | Air (double) jump | confirmed | set vy after 0.2 s, costs stamina | implemented |
+| B-JMP-03 | Late jump (coyote) | confirmed | 0.1 s grace | implemented |
+| B-DSH-01 | Ground dash | confirmed | velocity set to max(speed, 20 m/s) | implemented |
+| B-DSH-02 | Air dash | confirmed | velocity set to max(speed, 25 m/s), once per air time | implemented |
 | B-DSH-03 | Down dash | decoded (partial) | none | not started |
 | B-DSH-04 | Dash-jump | confirmed | jump cancels dash | not started |
-| B-SLD-01 | Slide activation | decoded | speed ≥ 9 m/s or on slope, after delay | not started |
-| B-SLD-02 | Slide sustain and exit | confirmed | ends when crouch released | not started |
-| B-SLD-03 | Slide friction and grace | confirmed | linear drag 3 m/s² | not started |
-| B-SLD-04 | Slope sliding | decoded | gravity projected down the slope | not started |
+| B-SLD-01 | Slide activation | decoded | speed ≥ 9 m/s or on slope, after delay | implemented |
+| B-SLD-02 | Slide sustain and exit | confirmed | ends when crouch released | implemented |
+| B-SLD-03 | Slide friction and grace | confirmed | linear drag 3 m/s² | implemented |
+| B-SLD-04 | Slope sliding | decoded | gravity projected down the slope | implemented |
 | B-SLD-05 | Slide steering | decoded | heading steer | not started |
 | B-SLD-06 | Sprint-slide boost | decoded (suspect) | none ("never multiplies speed") | not started |
 | B-SLD-07 | Landing slide boost | decoded | none | not started |
-| B-SLD-08 | Dash-slide | confirmed | none | not started |
+| B-SLD-08 | Dash-slide | confirmed | none | implemented |
 | B-SLD-09 | Slide-jump | decoded | ordinary jump | not started |
 | B-SLD-10 | Drop-slide (crouch while falling) | decoded | none | not started |
 | B-SLD-11 | Slide cancel and lockout | configured | none | not started |
-| B-STA-01 | Stamina pool and regen | configured (wiki) | 3 bars, 1/s after 1 s delay | not started |
-| B-STA-02 | Stamina costs | decoded | dash 1, air dash 1, double jump 1 | not started |
+| B-STA-01 | Stamina pool and regen | configured (wiki) | 3 bars, 1/s after 1 s delay | implemented |
+| B-STA-02 | Stamina costs | decoded | dash 1, air dash 1, double jump 1 | implemented |
 | B-WAL-01 | Wall jump | configured | none | deferred |
 | B-WAL-02 | Wall slide | configured | none | deferred |
 | B-MNT-01 | Mantle | configured | none | deferred |

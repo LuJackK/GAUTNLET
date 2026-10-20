@@ -96,6 +96,7 @@
     <Compile Include="Assets\Scripts\SceneMusicPlayer.cs" />
     <Compile Include="Assets\Scripts\Shared\Extensions\IntExtensions.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\CorrectionDecision.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Movement\DeadlockMovementConfig.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupSpawnDirector.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\NetworkedCharacterPredictionReconcileService.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\Spawning\PlayerSpawnService.cs" />
@@ -109,6 +110,7 @@
     <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\NetcodeDiagnosticsHUD.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\Player\Debug\NetcodeTraceRecorder.cs" />
     <Compile Include="Assets\Scripts\Shared\Physics\Tracer.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Movement\SurfController.Deadlock.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Movement\PlayerAiming.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\CharacterRenderer.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupEffectDefinition.cs" />

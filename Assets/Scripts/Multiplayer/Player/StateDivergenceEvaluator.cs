@@ -43,6 +43,7 @@ namespace Fragsurf.Movement {
             CompareForceField(report, predicted.canAirDash != authoritative.canAirDash, "canAirDash", predicted.canAirDash, authoritative.canAirDash);
             CompareForceField(report, predicted.jumpCount != authoritative.jumpCount, "jumpCount", predicted.jumpCount, authoritative.jumpCount);
             CompareForceField(report, predicted.coyoteTimer != authoritative.coyoteTimer, "coyoteTimer", predicted.coyoteTimer, authoritative.coyoteTimer);
+            CompareForceField(report, predicted.airDashing != authoritative.airDashing, "airDashing", predicted.airDashing, authoritative.airDashing);
             // Stance changes the collision shape, so it cannot remain a soft visual difference.
             CompareForceField(report, predicted.crouching != authoritative.crouching, "crouching", predicted.crouching, authoritative.crouching);
 

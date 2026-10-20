@@ -7,7 +7,7 @@ namespace GAUNTLET.Rollback {
     // Explicit wire contract. The manifest test rejects newly added MoveData
     // fields until they are included here or deliberately classified as bindings.
     public static class WorldMovementSerializer {
-        public const ushort Version = 2;
+        public const ushort Version = 3;
         public static readonly string[] Fields = {
             "frame",
             "lastInput",
@@ -46,12 +46,16 @@ namespace GAUNTLET.Rollback {
             "jumpCount",
             "jumpTimer",
             "coyoteTimer",
+            "dashDirection",
+            "airDashing",
             "slideRequested",
             "sliding",
             "wasSliding",
             "slideSpeedCurrent",
             "slideDirection",
             "slideDelay",
+            "dashSlideTimer",
+            "slideGraceTimer",
             "slopeLimit",
             "rigidbodyPushForce",
             "defaultHeight",
@@ -139,12 +143,16 @@ namespace GAUNTLET.Rollback {
             writer.Write(value.jumpCount);
             writer.Write(value.jumpTimer);
             writer.Write(value.coyoteTimer);
+            writer.Write(value.dashDirection);
+            writer.Write(value.airDashing);
             writer.Write(value.slideRequested);
             writer.Write(value.sliding);
             writer.Write(value.wasSliding);
             writer.Write(value.slideSpeedCurrent);
             writer.Write(value.slideDirection);
             writer.Write(value.slideDelay);
+            writer.Write(value.dashSlideTimer);
+            writer.Write(value.slideGraceTimer);
             writer.Write(value.slopeLimit);
             writer.Write(value.rigidbodyPushForce);
             writer.Write(value.defaultHeight);
@@ -233,12 +241,16 @@ namespace GAUNTLET.Rollback {
                 jumpCount = reader.Read<int>(),
                 jumpTimer = reader.Read<float>(),
                 coyoteTimer = reader.Read<float>(),
+                dashDirection = reader.Read<Vector3>(),
+                airDashing = reader.Read<bool>(),
                 slideRequested = reader.Read<bool>(),
                 sliding = reader.Read<bool>(),
                 wasSliding = reader.Read<bool>(),
                 slideSpeedCurrent = reader.Read<float>(),
                 slideDirection = reader.Read<Vector3>(),
                 slideDelay = reader.Read<float>(),
+                dashSlideTimer = reader.Read<float>(),
+                slideGraceTimer = reader.Read<float>(),
                 slopeLimit = reader.Read<float>(),
                 rigidbodyPushForce = reader.Read<float>(),
                 defaultHeight = reader.Read<float>(),

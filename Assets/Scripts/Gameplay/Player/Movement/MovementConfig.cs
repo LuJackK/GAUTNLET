@@ -1,10 +1,22 @@
 using UnityEngine;
 namespace Fragsurf.Movement {
 
+    public enum MovementModel {
+        // GAUNTLET's original movement rules and tuning.
+        Legacy,
+        // Rules recovered from Deadlock (Research/DeadlockMovement/BEHAVIOURS.md), values in DeadlockMovementConfig.
+        Deadlock
+    }
+
     [System.Serializable]
     public class MovementConfig {
         public float GetMaxStamina(MoveData state) => Mathf.Max(0f, maxStamina + (state?.maxStaminaBonus ?? 0f));
         public float GetStaminaRegenRate(MoveData state) => Mathf.Max(0f, staminaRegenRate + (state?.staminaRegenBonus ?? 0f));
+
+        [Header ("Movement model")]
+        [Tooltip("Legacy keeps GAUNTLET's original movement. Deadlock uses the rules and values recovered from Deadlock (see Deadlock Movement below). Heavy melee and parry use the legacy rules in both models. Use identical settings on client and server.")]
+        public MovementModel movementModel = MovementModel.Legacy;
+        public DeadlockMovementConfig deadlock = new DeadlockMovementConfig();
 
         [Header ("Jumping and gravity")]
         public bool autoBhop = true;

@@ -62,6 +62,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\Tests\ReplayHarness\AuthoritativeStateRegressionTests.cs" />
+    <Compile Include="Assets\Tests\ReplayHarness\DeadlockMovementTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayHarnessPlayModeTests.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayHarnessRunner.cs" />
     <Compile Include="Assets\Tests\ReplayHarness\ReplayTraceRecorder.cs" />

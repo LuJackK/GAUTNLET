@@ -46,6 +46,8 @@ namespace Fragsurf.Movement {
         public int JumpCount;
         public float JumpTimer;
         public float CoyoteTimer;
+        public UnityEngine.Vector3 DashDirection;
+        public byte AirDashing;
         public byte Grounded;
         public byte GroundedTemp;
         public byte Jumping;
@@ -67,6 +69,8 @@ namespace Fragsurf.Movement {
         public float SlideSpeedCurrent;
         public UnityEngine.Vector3 SlideDirection;
         public float SlideDelay;
+        public float DashSlideTimer;
+        public float SlideGraceTimer;
         public byte DashStartedThisFrame;
         public byte DoubleJumpedThisFrame;
         public byte MeleeHitThisFrame;
@@ -114,6 +118,8 @@ namespace Fragsurf.Movement {
             JumpCount = 0;
             JumpTimer = 0f;
             CoyoteTimer = 0f;
+            DashDirection = default;
+            AirDashing = 0;
             Grounded = 0;
             GroundedTemp = 0;
             Jumping = 0;
@@ -135,6 +141,8 @@ namespace Fragsurf.Movement {
             SlideSpeedCurrent = 0f;
             SlideDirection = default;
             SlideDelay = 0f;
+            DashSlideTimer = 0f;
+            SlideGraceTimer = 0f;
             DashStartedThisFrame = 0;
             DoubleJumpedThisFrame = 0;
             MeleeHitThisFrame = 0;
