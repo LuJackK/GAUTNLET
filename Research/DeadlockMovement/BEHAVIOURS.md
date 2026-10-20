@@ -28,14 +28,14 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-AIR-02 | Air accelerate | decoded | custom steer + accelerate | not started |
 | B-AIR-03 | Air drag | confirmed | none | not started |
 | B-JMP-01 | Ground jump | confirmed | set vy, auto-bhop, beats slide | not started |
-| B-JMP-02 | Air (double) jump | decoded | set vy after 0.2 s, costs stamina | not started |
-| B-JMP-03 | Late jump (coyote) | decoded | 0.1 s grace | not started |
+| B-JMP-02 | Air (double) jump | confirmed | set vy after 0.2 s, costs stamina | not started |
+| B-JMP-03 | Late jump (coyote) | confirmed | 0.1 s grace | not started |
 | B-DSH-01 | Ground dash | confirmed | velocity set to max(speed, 20 m/s) | not started |
-| B-DSH-02 | Air dash | decoded | velocity set to max(speed, 25 m/s), once per air time | not started |
+| B-DSH-02 | Air dash | confirmed | velocity set to max(speed, 25 m/s), once per air time | not started |
 | B-DSH-03 | Down dash | decoded (partial) | none | not started |
-| B-DSH-04 | Dash-jump | decoded | jump cancels dash | not started |
+| B-DSH-04 | Dash-jump | confirmed | jump cancels dash | not started |
 | B-SLD-01 | Slide activation | decoded | speed ≥ 9 m/s or on slope, after delay | not started |
-| B-SLD-02 | Slide sustain and exit | decoded | ends when crouch released | not started |
+| B-SLD-02 | Slide sustain and exit | confirmed | ends when crouch released | not started |
 | B-SLD-03 | Slide friction and grace | confirmed | linear drag 3 m/s² | not started |
 | B-SLD-04 | Slope sliding | decoded | gravity projected down the slope | not started |
 | B-SLD-05 | Slide steering | decoded | heading steer | not started |
@@ -66,6 +66,27 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-SLD-08 | target 650 after the dash-slide timer, else 450 | crouch ≤ 0.297 s after the dash: speed set to exactly 450.0 (3 trials); ≥ 0.3125 s: exactly 650.0 (13 trials). The timer is 0.3 s after the dash starts. The speed is set before the hooked movement step (it arrives in the step's incoming velocity) |
 | B-SLD-03 | slide coefficient 0.175 for 1 s, then 0.8 | 0.172 for the first second, then 0.797, in all 16 trials (within 2%; possibly the slide's friction smoothing, check with the recorder's `friction` field) |
 | B-GND-04 | crouch wishspeed `ECrouchSpeed` 4.75 m/s = 187.0 u/s | holding forward while sliding, speed settles at 187.0 u/s: acceleration (25 u/s per tick) beats slide friction at that speed, so a slide held with forward never drops to the 170 sustain stop |
+| B-SLD-03 (values) | friction coefficients | recorded `friction` is exactly 11/64 = 0.171875 and 51/64 = 0.796875: the game stores it in 1/64 steps, which explains the 2% (runs 20261020-01 and -04) |
+
+Live session 2026-10-20: `human-tests-20261020-01` (build 26059233; Mina, item-free from 945.97 s) and
+`human-tests-20261020-04` (**build 26090082**; Mina, no items). On 26090082 a gate trial reproduced the
+dash and dash-slide tick for tick; the schema diff shows no movement-specific field added or removed and
+no movement convar default changed. Ticks are listed in each run's `activity-notes.jsonl`.
+
+| Behaviour | Prediction | Measured |
+| --- | --- | --- |
+| B-JMP-03 | late jump within 0.15 s (9.6 ticks) of leaving ground while falling | walk-offs pressed at ≤ 9 ticks: free ground jump (vz 287.5 after the step); ≥ 10 ticks: air jump costing 1 stamina (12 reps) |
+| B-JMP-02 | air jump sets vz; adds horizontal speed along input capped by `m_flMaxSpeedDelta` | vz set to **525.0** = `VerticalSpeed` 300 × (1 + `AirJumpVerticalSpeedPercent` 75%), every rep; horizontal **+200.0 u/s exactly along the input direction** in all 7 sideways reps, whatever the prior momentum, so `m_flMaxSpeedDelta` = 200 |
+| B-DSH-01 | ground dash at 635 u/s | the cast tick **zeroes the existing velocity** (step input velocity 0), then 0.2 u/s on the first tick and 635.0 from the second, along the input direction relative to view yaw. From a 319 u/s run: still 635. The wiki's "set velocity to a fixed amount" is right |
+| B-DSH-02 | air dash | **not an impulse**: Source air acceleration toward the dash direction with `wish = 732.4 × lerp(1, m_flAirDashEndVelocityScale 0.2, progress)` (732.4 = 8 m / 0.43 s) and `accel = sv_airaccelerate 10 × (1 + m_flAirDashAccPct −40%)`: first-tick gain 68.66 predicted, 68.6 measured; the cap reached was 626.0 at tick 5 from a run and 562.1 at tick 8 from standing, which extrapolates to 732.5 at tick 0. Prior momentum is kept and projected (a backward dash from forward momentum slows through 0 first). `vz` is pinned at 100/64 = 1.5625 (`m_flDuringDrag` = 1); gravity is off for 28 ticks (0.44 s) |
+| B-DSH-04 | dash-jump | velocity **set** to vz **425** and horizontal **704.0** along the dash, which is `m_flDashJumpDistanceInMeters` 19 m ÷ the flat flight time 2 × 425 / 800 s = 704.03 u/s (a 19 m dash-jump on flat ground). Works at 0.31–0.33 s into the dash; no dash-jump at 0.14–0.17 s or at 0.56–0.58 s. The exact window end (0.5 or 0.55 s) is open: the user dropped it, since dash-jumps are low priority |
+| B-SLD-08 (new build) | 0.3 s timer | crouch ≤ 16 ticks (0.25 s) → 450; ≥ 21 ticks (0.328 s) → 650 (10 reps) |
+| B-SLD-02 | stop below 170 u/s with no forward input | dash-slide friction lasts exactly 64 ticks (1.0 s), then 0.8; the slide ends (friction back to 1) on the tick after speed falls below 170 (at 167.6), in 3 of 3 reps |
+
+Open from the live session: some air-dash presses did not execute despite stamina and a movement key
+(run -04 ticks 40352, 40385, 49848; ground 61383). `m_flSpeedAdjust` is never visible in after-frame state
+(set and consumed within one tick).
+
 
 ## Ground
 

@@ -161,6 +161,16 @@ entry speeds predict the pilot's 643 and 445 u/s peaks to the unit.
 See [BEHAVIOURS.md](BEHAVIOURS.md) for each rule and [TEST_TRIAGE.md](TEST_TRIAGE.md) for checks.
 `DisassembleFunctions.java` covers cases the decompiler hides (tail calls with register arguments).
 
+### Build 26090082 (2026-10-20 update)
+
+Snapshot, schema dump and types taken. `modlock-sigcheck` resolves 57/61 (failed:
+`game-rules.precache-call`, `pawn.modify-currency`, `preparation.damage-gate`, `projectile.impact`; none
+movement). Schema diff against 26059233: only generic base-class fields changed (VData
+`m_projectileInfo` → `m_mapProjectileInfos`, new `m_bAffectedByRushMovementTimeScale`; abilities gain
+`m_flCastDelaySpeedScale` and `m_flStoppedCooldownRemaining`), which shifts offsets but adds or removes no
+movement field. Movement convar defaults are unchanged, and the live gate reproduced dash and dash-slide
+exactly. RVAs in this document are for 26059233; rerun `analyze` on 26090082 before reading code again.
+
 ### Remaining open details
 
 Settle these by test where cheaper than reading code:

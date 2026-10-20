@@ -57,6 +57,19 @@ T01 none; T02 only the from-a-run variant; T03 only a confirmation pair (0.28 s 
 26059233; T04 a no-forward-input slide to see the 170 sustain stop, and the recorder's `friction`
 field for the 0.172 vs 0.175 difference.
 
+## Live session results (2026-10-20)
+
+Runs `human-tests-20261020-01` (build 26059233) and `-04` (build 26090082, after a mid-session update;
+a gate trial reproduced dash and dash-slide exactly). P0 done: T00 passed (all recorder fields work;
+`m_flSpeedAdjust` is consumed within a tick, so frames show 0). **T06, T05, T08, T02 (run variant), T03
+pair and T04 confirmed** the decoded rules; T07 was partial by user decision (dash-jump is low priority;
+the window end, 0.5 or 0.55 s, is open). New exact values: air jump vz 525 and +200 horizontal
+(`m_flMaxSpeedDelta`); dash-jump horizontal 704 (19 m flight); the air dash as decaying-wish air
+acceleration; the ground dash zeroes prior velocity. See
+[BEHAVIOURS.md](BEHAVIOURS.md#capture-checks-2026-10-20). Still open: why some air-dash presses did
+not execute (run -04 ticks 40352, 40385, 49848, 61383). P1 tests not run. Use
+`python trace_ticks.py <capture> <tick>[:before:after]` for per-tick tables.
+
 ## Tests
 
 | ID | Pri | Kind | Behaviour | What to do | Pass / what it settles |
