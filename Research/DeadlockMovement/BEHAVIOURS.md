@@ -34,16 +34,16 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-DSH-02 | Air dash | configured | velocity set to max(speed, 25 m/s), once per air time | not started |
 | B-DSH-03 | Down dash | configured | none | not started |
 | B-DSH-04 | Dash-jump | configured | jump cancels dash | not started |
-| B-SLD-01 | Slide activation | configured | speed ≥ 9 m/s or on slope, after delay | not started |
-| B-SLD-02 | Slide sustain and exit | configured | ends when crouch released | not started |
-| B-SLD-03 | Slide friction and grace | configured | linear drag 3 m/s² | not started |
-| B-SLD-04 | Slope sliding | configured | gravity projected down the slope | not started |
-| B-SLD-05 | Slide steering | configured | heading steer | not started |
-| B-SLD-06 | Sprint-slide boost | configured | none ("never multiplies speed") | not started |
-| B-SLD-07 | Landing slide boost | configured | none | not started |
-| B-SLD-08 | Dash-slide | configured | none | not started |
-| B-SLD-09 | Slide-jump | configured | ordinary jump | not started |
-| B-SLD-10 | Drop-slide (crouch while falling) | configured | none | not started |
+| B-SLD-01 | Slide activation | decoded | speed ≥ 9 m/s or on slope, after delay | not started |
+| B-SLD-02 | Slide sustain and exit | decoded | ends when crouch released | not started |
+| B-SLD-03 | Slide friction and grace | decoded | linear drag 3 m/s² | not started |
+| B-SLD-04 | Slope sliding | decoded | gravity projected down the slope | not started |
+| B-SLD-05 | Slide steering | decoded (partial) | heading steer | not started |
+| B-SLD-06 | Sprint-slide boost | decoded (suspect) | none ("never multiplies speed") | not started |
+| B-SLD-07 | Landing slide boost | decoded | none | not started |
+| B-SLD-08 | Dash-slide | confirmed | none | not started |
+| B-SLD-09 | Slide-jump | located | ordinary jump | not started |
+| B-SLD-10 | Drop-slide (crouch while falling) | decoded | none | not started |
 | B-SLD-11 | Slide cancel and lockout | configured | none | not started |
 | B-STA-01 | Stamina pool and regen | configured | 3 bars, 1/s after 1 s delay | not started |
 | B-STA-02 | Stamina costs | configured | dash 1, air dash 1, double jump 1 | not started |
@@ -56,17 +56,20 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 ## Ground
 
 ### B-GND-01 Ground friction
-- **Deadlock** (`0xb08540`, confirmed): applies when grounded (or mv flag +0x10e). Uses
+- **Deadlock** (`0xb08540`, decoded): applies when grounded (or mv flag +0x10e). Uses
   horizontal speed only. Below 0.1 u/s, horizontal velocity is zeroed. Otherwise
-  `speed −= max(speed, stopSpeed) × friction × dt`, floored at 0, direction kept.
-  `friction = sv_friction × surfaceFriction × hero multiplier × modifier multiplier`, doubled
-  while a vector at mv+0xf4 is set. That vector is unidentified (possibly base or ground
-  velocity).
-- **Open:** both multipliers (`0xdf87e0`, `0xaf8870`) and the mv+0xf4 vector. Capture release
-  time 0.500–0.516 s against a model 0.531 s.
+  `speed −= max(speed, sv_stopspeed) × friction × dt`, floored at 0, direction kept.
+- `friction = sv_friction (4) × surfaceFriction × pawnFriction × FRICTION_PERCENTAGE × GROUND_FRICTION_PERCENTAGE`,
+  doubled while a vector at mv+0xf4 is set (unidentified, possibly base velocity). `pawnFriction`
+  is the pawn coefficient at +0x3fc (`0xdf87e0`): 1 normally, written by the slide (B-SLD-03).
+  The two percentages are modifier values 3 and 142 (`0xaf8870`), default 1.
+- **Open:** capture release time 0.500–0.516 s against a model 0.531 s with all multipliers at 1.
+  Check surfaceFriction and the mv+0xf4 vector during those trials.
 - **GAUNTLET:** `SurfPhysics.Friction`, same law. Different values. No zero-below-threshold.
   Crouch has its own friction, and dashing scales friction by 0.5.
-- **Gap:** values; threshold; multipliers once decoded. Is GAUNTLET's dash-friction rule in Deadlock? Pending B-DSH-01.
+- **Gap:** values and threshold. Is GAUNTLET's dash-friction rule in Deadlock? Pending B-DSH-01.
+- **Port note:** model slide deceleration as a friction coefficient on this same function, not as
+  separate drag.
 - **Check:** release-to-stop tick count against `human-20261018-02` forward trials.
 
 ### B-GND-02 Ground accelerate
@@ -151,55 +154,121 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 
 ## Slide
 
-All slide behaviours anchor on `CCitadel_Ability_Slide`. It has six slide-specific vtable
-overrides: slot 14 `0x2b7a50`, 269 `0x2b6480`, 345 `0x2b1810`, 350 `0x2a4e80`,
-352 `0x2a72b0` and 354 `0x2a35b0`. `0x265660` reads `citadel_player_slide_min_percent`.
-Values below are base `CAbilitySlideVData` from vdata.
+Decoded 2026-10-20 from `CCitadel_Ability_Slide`, build 26059233. Values are base
+`CAbilitySlideVData` (vdata build 25841406). "Speed" means horizontal speed.
+
+| RVA | Role |
+| --- | --- |
+| `0x2b7bb0` | per-tick input, start and stop; runs the friction update last |
+| `0x2b0740` | SetSliding(on/off): entry boosts, dash-slide, friction reset |
+| `0x2b6cd0` | slide friction update (writes the pawn friction coefficient) |
+| `0x295d70` | movement callback (interface at +0x4c0, slot 4): pending boost, slope acceleration, steering |
+| `0x2a35c0` | landing callback: drop-slide and landing boost |
+| `0x252350` | slope check: 1 = standing on a downhill slope ≥ 8°, 2 = forward probe finds one, 0 = no |
+| `0x265660` | slow scaling: `clamp(slowFactor / (2 − slowResistance), 0.8, 1)`; 1 when not slowed |
+| `0x2ab920` | registers modifier providers: AIR_DRAG (185), MOVEMENT_SPEED_MAX_PERCENT (70) |
+
+The six non-boilerplate vtable overrides (`0x2b7a50`, `0x2b6480`, `0x2b1810`, `0x2a4e80`,
+`0x2a72b0`, `0x2a35b0`) turned out to be cleanup, the `"sliding"` animation tag and stop-slide
+calls. The logic is in the functions above.
+
+**How speed changes reach velocity.** Slide entry never sets velocity directly. It stores a
+pending speed in `m_flSpeedAdjust`; the next movement callback adds it once along the horizontal
+velocity direction (or the facing direction when stationary), then clears it. Deceleration comes
+from ground friction (B-GND-01): the slide writes the pawn friction coefficient (pawn +0x3fc),
+which ground friction multiplies with `sv_friction` 4 under the stop-speed rule. Stopping the
+slide resets the coefficient to 1.
 
 ### B-SLD-01 Activation
-- **Deadlock:** flat ground needs speed ≥ 350 (`m_flMinActivationSpeed`). While dashing, ≥
-  `m_flDashMinActivationSpeed`. Forward slope probe (`m_flSlideActivationProbeForwardOffset`)
-  can start a slide early on a slope; facing angle limits apply. `citadel_slide_delay` 0.15;
-  `m_flButtonPressWindow` 5.
-- **GAUNTLET:** crouch held, `slideDelay` 0.5 s elapsed, speed ≥ 9 m/s or slope > 5°.
+- **Deadlock** (`0x2b7bb0`): wanting to slide needs crouch held (or the sticky/toggle slide button)
+  and no ability block. Holding crouch from before does not restart a slide unless a forced-restart
+  tick allows it. Crouch press time and "airborne when crouch pressed" are recorded.
+- A slide starts when wanted, not already sliding, and any of:
+  1. the slope check passes (downhill ≥ 8° underfoot, or ahead via the forward probe);
+  2. grounded and speed ≥ `m_flMinActivationSpeed` 350 (8.89 m/s);
+  3. grounded, dashing (pawn state bit 0x200) and speed ≥ `m_flDashMinActivationSpeed` 250.
+- Landing on a slide-able slope starts one via B-SLD-10.
+- `citadel_slide_delay` 0.15 is not read on this path. Its role is open.
+- **GAUNTLET:** crouch held, `slideDelay` 0.5 s, speed ≥ 9 m/s or slope > 5°.
+- **Gap:** dash threshold, forward probe, no restart while crouch stays held.
 
 ### B-SLD-02 Sustain and exit
-- **Deadlock:** on flat ground, stop sliding below 170 (`m_flMinSustainSpeed`).
-- **GAUNTLET:** no sustain threshold; the slide ends when crouch is released or the speed condition fails.
+- **Deadlock** (`0x2b7bb0`): stops when crouch is released (unless sticky), when airborne, when
+  blocked, or when speed < `m_flMinSustainSpeed` 170 with no pending boost, unless on a downhill
+  slope it is facing (within `m_flSlopeFacingAngleToActivate`). On stop: friction coefficient back
+  to 1, optional slow-getup animation, timers reset.
+- **GAUNTLET:** no sustain threshold.
 
 ### B-SLD-03 Friction and grace
-- **Deadlock:** flat friction 0.8. For 0.6 s after starting (0.75 s after landing) the grace
-  friction 0.05 applies instead. Separate min/max-slope and uphill friction. The friction law
-  is presumably shared with B-GND-01 (to verify).
-- **GAUNTLET:** constant linear drag 3 m/s².
+- **Deadlock** (`0x2b6cd0`), flat ground (slope < 8°). The coefficient is the first that applies:
+  1. within `m_flDashSlideFrictionTime` 1.0 s of a dash-slide start: `m_flDashSlideFriction` 0.175;
+  2. within `m_flFlatGroundFrictionGraceTime` 0.6 s of starting to slide on flat ground, or within
+     `m_flLandedFlatGroundFrictionGraceTime` 0.75 s of the slide's ground start: grace 0.05;
+  3. otherwise `m_flFrictionFlatGround` 0.8.
+- Window lengths scale with `MOVEMENT_SLIDE_DISTANCE_SCALE` and a time scale. The coefficient is
+  multiplied by `(2 − slowScaling) × max(0, 2 − slideDistanceScale)`, which is 1 by default.
+  Pawn modifier state 200 forces 0.
+- On slopes: `remap(slopeDeg, 5°, 45°, FrictionMinSlope 0.15, FrictionMaxSlope 0.15)`, or the
+  uphill pair 1.0 → 1.5 when moving uphill. The flat timer resets on slopes.
+- **Effective decay** with `sv_friction` 4 and stop speed 100: dash-slide 0.7/s, grace 0.2/s,
+  flat 3.2/s, downhill 0.6/s, uphill 4–6/s, all above 100 u/s; below 100 u/s it is constant
+  (4 × c × 100 u/s²).
+- **GAUNTLET:** linear drag 3 m/s².
+- **Check:** the pilot's single-exponential fit (k ≈ 0.90/s, RMSE ~38) mixes the 0.7/s and
+  3.2/s regimes. Refit piecewise.
 
-### B-SLD-04 Slope sliding
-- **Deadlock:** slope acceleration between min/max slope angles (`m_flAccMinSlopeDeg`,
-  `m_flAccMaxSlopeDeg`) with speed caps; sampled slope normals from probes.
-- **GAUNTLET:** gravity projected onto the ground normal × `slideSlopeAcceleration`.
+### B-SLD-04 Slope acceleration
+- **Deadlock** (`0x295d70`): when slope ≥ 8° and not uphill, `t = clamp((deg − 5)/(45 − 5), 0, 1)`,
+  `accel = lerp(500, 850, t)`, `cap = lerp(1200, 1500, t)`, then each tick
+  `v += downhillDir_xy × min(max(cap − |v|, 0), accel) × dt`. For the first
+  `m_flInitialSlideUseForwardProbeTime` 0.25 s of a slide started by the forward probe, the
+  probe's slope is used instead of the slope underfoot.
+- **GAUNTLET:** gravity projected on the ground normal × `slideSlopeAcceleration`.
 
 ### B-SLD-05 Steering
-- **Deadlock:** `m_flTurnSpeed` 90 with min/max angle difference.
+- **Deadlock** (`0x295d70`): with movement input, velocity rotates about the vertical axis by
+  `turn × dt × m_flTurnSpeed (90°/s) × scale`, with `turn` clamped to [−1, 1] (input relative to
+  velocity). On flat ground `scale` is a modifier (likely `MOVEMENT_SLIDE_TURN_SCALE`); on slopes
+  it is `1 − clamp(|angle term| / 45°, 0, 1)`. Rotation only, so speed is kept.
+- **Open:** the exact `turn` function (`0x254fc70`) and the slope angle term;
+  `m_flTurnMin/MaxAngDiff` not seen yet.
 - **GAUNTLET:** heading steer at `slideControlAcceleration`.
 
-### B-SLD-06 Sprint-slide boost / B-SLD-07 Landing slide boost
-- **Deadlock:** running forward into a slide adds 300. Landing into a slide adds a boost of 100–600,
-  scaled by landing speed between the min and max trigger speeds, and biased by slope.
-- **GAUNTLET:** none by design so far.
+### B-SLD-06 Sprint-slide boost
+- **Deadlock** (`0x2b0740`): on slide start, if at least 1 s has passed since the last slide change
+  and the pawn has state bit 0x40 (likely sprinting), pending boost = `m_flSprintBoostSpeed` 300.
+- **Suspect:** as decompiled, the slide-change time is updated just before this check, which
+  would make the elapsed time 0 and the boost unreachable. Verify with a sprint-into-slide capture.
+
+### B-SLD-07 Landing slide boost
+- **Deadlock** (`0x2a35c0`): on landing with fall speed `f`, if wanting to slide, not sliding,
+  the slope check passes, and crouch was pressed within `m_flButtonPressWindow` 5 s: start the
+  slide. If `f ≥ 300`, pending boost =
+  `remap(f, 300, 700, 100, 600) × Bias(remap(slopeDeg, 5°, 45°, 0.25, 1), 0.6)`.
+  Flat landings get no boost. `Bias` is assumed to be Source's `x^(log(b)/log(0.5))`
+  (`0x2550650`, to verify).
+- **GAUNTLET:** none.
 
 ### B-SLD-08 Dash-slide
-- **Deadlock:** sliding within 0.3 s of a dash starts at 650 (late timing gives
-  `m_flDashSlideFailSpeed`), then friction 0.175 for 1 s. There is a success sound.
+- **Deadlock** (`0x2b0740`), confirmed: on slide start while dashing (state bit 0x200), the target is
+  `m_flDashSlideSpeed` 650 if now is past the dash-slide timer (`m_flGroundDashSlideTime`),
+  otherwise `m_flDashSlideFailSpeed` 450 (too early). Pending boost = `slowScaling × target − speed`,
+  so speed becomes exactly the target. It starts the 1 s dash-slide friction window and the ground
+  start time. The success sound plays only at full speed. When not dashing, the dash-slide time is
+  cleared.
+- **Capture:** one tick after entry, 650 × (1 − 0.7/64) = 642.9 and 450 × (1 − 0.7/64) = 445.1.
+  The pilot measured peaks of "approximately 643" (13 trials) and "around 445" (3 trials).
+- **Open:** how `m_flGroundDashSlideTime` is set (expected: dash start + `m_flDashSlideStartTime` 0.3).
 - **GAUNTLET:** none.
 
 ### B-SLD-09 Slide-jump
-- **Deadlock:** jumping out of a slide applies air drag for a limited time, ramping by angle.
-  A jump shortly after the slide ends still counts (`m_flLateSlideJumpWindow`).
+- **Deadlock:** the slide supplies `MODIFIER_VALUE_AIR_DRAG` (provider `0x2632e0`, unread);
+  `m_flAirDragAfterJumpTime` 0.5, `m_flLateSlideJumpWindow` 0.25.
 - **GAUNTLET:** ordinary jump.
 
 ### B-SLD-10 Drop-slide
-- **Deadlock:** crouching while falling can start a slide on landing. The activate press may
-  be some time earlier. Lookahead up to 150 (`citadel_slide_one_button_falling_max_lookahead_distance`).
+- **Deadlock** (`0x2a35c0`): the landing path in B-SLD-07. Crouch pressed up to 5 s before landing
+  starts a slide on a slide-able slope. The lookahead convar (150) is unread.
 - **GAUNTLET:** the slide starts on landing only if crouch is held and the speed condition holds.
 
 ### B-SLD-11 Cancel and lockout

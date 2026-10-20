@@ -84,7 +84,13 @@ Scripts in `ghidra_scripts/`:
 
 ### What did not work
 
-- **No RTTI vtables** in this build, so classes cannot be reached through `vftable` symbols.
+- **Ghidra does not create `vftable` symbols here**, so `ExportClassMethods.java` finds nothing.
+  The RTTI itself is present: about 6,000 type descriptors in each DLL. Use
+  `python static_analysis.py vtables --build BUILD CLASS... --base CCitadelBaseAbility`, which
+  walks type descriptor → complete object locator → vtable straight from the PE and lists the slots
+  each class overrides. Abilities also have secondary vtables. The interface at +0x4c0 (1216)
+  carries the movement callbacks: slide overrides slots 1, 4 and 7, and slot 4 is its per-tick
+  movement function.
 - **The field-offset probe is confounded.** Every ability VData subclass starts its own
   fields at +5096, right after `CitadelAbilityVData`, so any ability's config code matches
   slide offsets. The top hits (`0x287cb0`, `0x28e430`) are schema registration functions
@@ -142,13 +148,22 @@ stamina cost 0.5 with 1 free wall jump, and others in `dump/console.json`.
 | Accelerate before friction | never reaches 95% | — | ruled out |
 | Release to < 1 u/s | 34 ticks (0.531 s) | 0.500–0.516 s | **1–2 ticks fast in capture**: read the friction multipliers |
 
+**Friction multipliers, decoded:** `0xdf87e0` returns the pawn friction coefficient (pawn
++0x3fc, default 1) × `MODIFIER_VALUE_FRICTION_PERCENTAGE`; `0xaf8870` returns
+`MODIFIER_VALUE_GROUND_FRICTION_PERCENTAGE`. The slide writes the pawn coefficient (setter
+`0x1cf4de0`). With no slide or modifiers, both are 1, so the release gap is not explained by
+them. **Unit scale:** `0x3c58a0` divides by 0.0254 (metres to units).
+
+**Slide:** fully mapped in [BEHAVIOURS.md](BEHAVIOURS.md#slide) (B-SLD-01 to 10). Dash-slide
+entry speeds predict the pilot's 643 and 445 u/s peaks to the unit.
+
 ### Next
 
-1. Friction multipliers (`0xdf87e0`, `0xaf8870`) and the mv+0xf4 vector, to close the
-   release gap. Wishspeed derivation (`0xb0b640`) and the hero speed stat behind 318.909.
-2. Air movement and air drag (`0xb07140`, `0xb076c0`), then slide via `0x265660` and the
-   `citadel_slide_delay` readers.
-3. Order of calls inside `ProcessMovement`.
+1. Slide leftovers: air-drag provider `0x2632e0` (B-SLD-09), `Bias` `0x2550650`, steering turn
+   function `0x254fc70`, how `m_flGroundDashSlideTime` is set, and the sprint-boost suspicion.
+2. Air movement and air drag (`0xb07140`, `0xb076c0`). Wishspeed derivation (`0xb0b640`).
+3. Dash: `CCitadel_Ability_Dash` overrides in the +0x4c0 interface (slots 2, 5, 8 and others).
+4. Order of calls inside `ProcessMovement`, and the release-time gap (surfaceFriction, mv+0xf4).
 
 ## First targets
 

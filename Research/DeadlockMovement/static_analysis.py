@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import struct
 import subprocess
 import sys
 
@@ -340,6 +341,93 @@ def script(args):
     headless(args.build, args.module, 'read', [(args.name, args.args)])
 
 
+class PeImage:
+    """Minimal x64 PE reader: sections, RVA/file-offset mapping, little-endian reads."""
+
+    def __init__(self, data):
+        self.data = data
+        pe = struct.unpack_from('<I', data, 0x3c)[0]
+        count = struct.unpack_from('<H', data, pe + 6)[0]
+        optional = struct.unpack_from('<H', data, pe + 20)[0]
+        self.base = struct.unpack_from('<Q', data, pe + 24 + 24)[0]
+        self.sections = []
+        for index in range(count):
+            header = pe + 24 + optional + 40 * index
+            name = data[header:header + 8].rstrip(b'\0').decode('ascii', 'replace')
+            virtual_size, rva, raw_size, raw = struct.unpack_from('<IIII', data, header + 8)
+            self.sections.append((name, rva, virtual_size, raw_size, raw))
+
+    def offset(self, rva):
+        for _, start, _, raw_size, raw in self.sections:
+            if start <= rva < start + raw_size:
+                return raw + rva - start
+        return None
+
+    def rva(self, offset):
+        for _, start, _, raw_size, raw in self.sections:
+            if raw <= offset < raw + raw_size:
+                return start + offset - raw
+        return None
+
+    def in_code(self, rva):
+        return any(name == '.text' and start <= rva < start + size
+                   for name, start, size, _, _ in self.sections)
+
+
+def class_vtables(image, name):
+    """[(subobject offset, vtable RVA, [slot RVAs])] from MSVC x64 RTTI for one class."""
+    found = image.data.find(b'.?AV' + name.encode() + b'@@\0')
+    if found < 0:
+        raise AnalysisError(f'No RTTI type descriptor for {name}')
+    descriptor = image.rva(found) - 16  # TypeDescriptor: vftable ptr, spare, name
+    needle = struct.pack('<I', descriptor)
+    tables = []
+    position = image.data.find(needle)
+    while position != -1:
+        locator = position - 12  # CompleteObjectLocator.pTypeDescriptor is at +12
+        locator_rva = image.rva(locator) if locator >= 0 else None
+        if (locator_rva is not None and struct.unpack_from('<I', image.data, locator)[0] == 1
+                and struct.unpack_from('<I', image.data, locator + 20)[0] == locator_rva):
+            subobject = struct.unpack_from('<I', image.data, locator + 4)[0]
+            meta = image.data.find(struct.pack('<Q', image.base + locator_rva))
+            if meta != -1:
+                table = image.rva(meta) + 8
+                slots, cursor = [], image.offset(table)
+                while cursor is not None and cursor + 8 <= len(image.data):
+                    target = struct.unpack_from('<Q', image.data, cursor)[0] - image.base
+                    if not image.in_code(target):
+                        break
+                    slots.append(target)
+                    cursor += 8
+                tables.append((subobject, table, slots))
+        position = image.data.find(needle, position + 1)
+    return sorted(tables)
+
+
+def vtables(args):
+    manifest = load_manifest(args.build)
+    binary = snapshot_dir(args.build) / manifest['binaries'][args.module]['file']
+    image = PeImage(binary.read_bytes())
+    report = {name: [{'subobject_offset': offset, 'rva': hex(table), 'slots': [hex(s) for s in slots]}
+                     for offset, table, slots in class_vtables(image, name)] for name in args.classes}
+    if args.base:
+        base = {offset: slots for offset, _, slots in class_vtables(image, args.base)}
+        for name in args.classes:
+            for table in report[name]:
+                reference = base.get(table['subobject_offset'], [])
+                table['overrides_vs_' + args.base] = [
+                    [index, slot] for index, slot in enumerate(table['slots'])
+                    if index >= len(reference) or int(slot, 16) != reference[index]]
+    output = snapshot_dir(args.build) / f'vtables-{args.module}.json'
+    output.write_text(json.dumps(report, indent=1), encoding='utf-8')
+    for name in args.classes:
+        summary = ', '.join(f'+{t["subobject_offset"]}: {len(t["slots"])} slots'
+                            + (f' ({len(t["overrides_vs_" + args.base])} overridden)' if args.base else '')
+                            for t in report[name])
+        print(f'{name}: {summary}')
+    print(f'Wrote {output}')
+
+
 def gui(args):
     ghidra, env = ghidra_env()
     launcher = ghidra / ('ghidraRun.bat' if os.name == 'nt' else 'ghidraRun')
@@ -377,6 +465,11 @@ def main():
     item.add_argument('name', help='Script file name, e.g. DecompileFunctions.java')
     item.add_argument('args', nargs=argparse.REMAINDER, help='Script arguments')
     item.set_defaults(func=script)
+    item = commands.add_parser('vtables', parents=[built, module],
+                               help='Read class vtables from RTTI, optionally diffed against a base class')
+    item.add_argument('classes', nargs='+', help='Class names, e.g. CCitadel_Ability_Slide')
+    item.add_argument('--base', help='Base class to diff against, e.g. CCitadelBaseAbility')
+    item.set_defaults(func=vtables)
     item = commands.add_parser('gui', help='Launch Ghidra with the pinned JDK')
     item.set_defaults(func=gui)
     args = parser.parse_args()

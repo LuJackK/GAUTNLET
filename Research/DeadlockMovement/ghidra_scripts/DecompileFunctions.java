@@ -29,6 +29,11 @@ public class DecompileFunctions extends GhidraScript {
 				long rva = Long.decode(args[i]);
 				Function function = getFunctionContaining(base.add(rva));
 				if (function == null) {
+					// Vtable targets are not always defined by auto-analysis.
+					disassemble(base.add(rva));
+					function = createFunction(base.add(rva), null);
+				}
+				if (function == null) {
 					println("No function at RVA " + args[i]);
 					continue;
 				}

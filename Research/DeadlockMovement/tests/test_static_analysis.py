@@ -1,4 +1,5 @@
 from pathlib import Path
+import struct
 import sys
 import tempfile
 import unittest
@@ -111,6 +112,43 @@ class TypeTests(unittest.TestCase):
         client = {**SLIDE, 'module': 'client'}
         with self.assertRaises(sa.AnalysisError):
             sa.build_types(schema(BASE, client), [r'CAbilitySlideVData'], 'none')
+
+
+def synthetic_pe(slots):
+    """A minimal x64 PE: .rdata (RVA 0x1000) holds RTTI and a vtable, .text (RVA 0x2000) the code."""
+    base = 0x180000000
+    data = bytearray(0xa00)
+    data[0x3c:0x40] = struct.pack('<I', 0x80)
+    pe = 0x80
+    data[pe:pe + 4] = b'PE\0\0'
+    struct.pack_into('<H', data, pe + 6, 2)          # section count
+    struct.pack_into('<H', data, pe + 20, 0xf0)      # optional header size
+    struct.pack_into('<Q', data, pe + 24 + 24, base)  # image base
+    sections = pe + 24 + 0xf0
+    for index, (name, rva, size, raw) in enumerate(((b'.rdata', 0x1000, 0x400, 0x400),
+                                                    (b'.text', 0x2000, 0x200, 0x800))):
+        header = sections + 40 * index
+        data[header:header + 8] = name.ljust(8, b'\0')
+        struct.pack_into('<IIII', data, header + 8, size, rva, size, raw)
+    # TypeDescriptor at RVA 0x1000: vftable ptr, spare, mangled name.
+    data[0x400 + 16:0x400 + 16 + 12] = b'.?AVSlide@@\0'
+    # CompleteObjectLocator at RVA 0x1100: signature 1, offset 0, cd offset, TD, CHD, self.
+    struct.pack_into('<IIIIII', data, 0x500, 1, 0, 0, 0x1000, 0, 0x1100)
+    # Vtable at RVA 0x1208, preceded by a pointer to the locator, ended by a non-code value.
+    struct.pack_into('<Q', data, 0x600, base + 0x1100)
+    for index, slot in enumerate(slots):
+        struct.pack_into('<Q', data, 0x608 + 8 * index, base + slot)
+    return bytes(data)
+
+
+class VtableTests(unittest.TestCase):
+    def test_reads_slots_until_a_non_code_pointer(self):
+        image = sa.PeImage(synthetic_pe([0x2000, 0x2010, 0x2020]))
+        self.assertEqual(sa.class_vtables(image, 'Slide'), [(0, 0x1208, [0x2000, 0x2010, 0x2020])])
+
+    def test_missing_class_is_an_error(self):
+        with self.assertRaises(sa.AnalysisError):
+            sa.class_vtables(sa.PeImage(synthetic_pe([0x2000])), 'Dash')
 
 
 class BuildIdTests(unittest.TestCase):
