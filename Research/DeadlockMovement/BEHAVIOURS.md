@@ -19,14 +19,14 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 
 | ID | Behaviour | Deadlock | GAUNTLET now | Port |
 | --- | --- | --- | --- | --- |
-| B-GND-01 | Ground friction | confirmed* | same law, different values | not started |
+| B-GND-01 | Ground friction | confirmed | same law, different values | not started |
 | B-GND-02 | Ground accelerate | confirmed | Source accelerate, no min-speed clamp | not started |
 | B-GND-03 | Tick order | decoded | friction then accelerate | not started |
-| B-GND-04 | Crouch walking | configured | separate crouch speed/accel/friction | not started |
+| B-GND-04 | Crouch walking | confirmed (crouch speed) | separate crouch speed/accel/friction | not started |
 | B-GND-05 | Sprint | configured | hidden, unused | not started |
 | B-AIR-01 | Gravity | confirmed | constant, suspended while dashing | not started |
 | B-AIR-02 | Air accelerate | decoded | custom steer + accelerate | not started |
-| B-AIR-03 | Air drag | decoded | none | not started |
+| B-AIR-03 | Air drag | confirmed | none | not started |
 | B-JMP-01 | Ground jump | confirmed | set vy, auto-bhop, beats slide | not started |
 | B-JMP-02 | Air (double) jump | decoded | set vy after 0.2 s, costs stamina | not started |
 | B-JMP-03 | Late jump (coyote) | decoded | 0.1 s grace | not started |
@@ -36,7 +36,7 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-DSH-04 | Dash-jump | decoded | jump cancels dash | not started |
 | B-SLD-01 | Slide activation | decoded | speed ≥ 9 m/s or on slope, after delay | not started |
 | B-SLD-02 | Slide sustain and exit | decoded | ends when crouch released | not started |
-| B-SLD-03 | Slide friction and grace | decoded | linear drag 3 m/s² | not started |
+| B-SLD-03 | Slide friction and grace | confirmed | linear drag 3 m/s² | not started |
 | B-SLD-04 | Slope sliding | decoded | gravity projected down the slope | not started |
 | B-SLD-05 | Slide steering | decoded | heading steer | not started |
 | B-SLD-06 | Sprint-slide boost | decoded (suspect) | none ("never multiplies speed") | not started |
@@ -51,7 +51,21 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-WAL-02 | Wall slide | configured | none | deferred |
 | B-MNT-01 | Mantle | configured | none | deferred |
 
-\* Release-to-stop is 1–2 ticks faster in the capture than in the model; see B-GND-01.
+
+## Capture checks, 2026-10-20
+
+`analyze_decoded_checks.py` on `human-20261018-02` (build 26020302; decoding on 26059233), report
+`decoded-checks-01.json`. No parameter was fitted.
+
+| Behaviour | Prediction | Measured |
+| --- | --- | --- |
+| B-GND-02 | +25.0 u/s per tick from rest (400 × 4 / 64) | 25.0 u/s per tick |
+| B-GND-01 | release to < 1 u/s: 33 / 34 / 33 ticks | 33 / 34 / 33 ticks; per-tick drop ratio 1.0000 (0.998–1.002). The earlier "1–2 tick gap" came from the pilot's tick counting, not the model |
+| B-DSH-01 | 635.0 u/s for 0.62 s, 10 m | 635.005 u/s for 39 full ticks (0.609 s), 9.83 m plus the partial last tick ≈ 10 m; afterwards ground friction to ±0.02 u/s per tick |
+| B-AIR-03 | air drag 0.2 | 0.1999–0.2002 over 4 running jumps |
+| B-SLD-08 | target 650 after the dash-slide timer, else 450 | crouch ≤ 0.297 s after the dash: speed set to exactly 450.0 (3 trials); ≥ 0.3125 s: exactly 650.0 (13 trials). The timer is 0.3 s after the dash starts. The speed is set before the hooked movement step (it arrives in the step's incoming velocity) |
+| B-SLD-03 | slide coefficient 0.175 for 1 s, then 0.8 | 0.172 for the first second, then 0.797, in all 16 trials (within 2%; possibly the slide's friction smoothing, check with the recorder's `friction` field) |
+| B-GND-04 | crouch wishspeed `ECrouchSpeed` 4.75 m/s = 187.0 u/s | holding forward while sliding, speed settles at 187.0 u/s: acceleration (25 u/s per tick) beats slide friction at that speed, so a slide held with forward never drops to the 170 sustain stop |
 
 ## Ground
 
@@ -109,8 +123,7 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
   stack additively. Sliding does not interrupt sprint. Base 7.2 + 1.6 = 8.8 m/s cannot start a flat
   slide (B-SLD-01).
 - **GAUNTLET:** crouch speed 4, accel 8, friction 3, stop 4. Sprint is a hidden field, not simulated.
-- **Lead:** sprint is its own ability class, `CCitadel_Ability_Sprint` (seen through RTTI in the
-  recorder). Decode it with `static_analysis.py vtables` the same way as slide and dash.
+- **Scope (user, 2026-10-20):** sprint is only a base move-speed increase; no further decoding needed.
 
 ## Air
 

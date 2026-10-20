@@ -48,6 +48,15 @@ by schema name, not hard-coded offsets):
 
 `sliding` is currently always `null` in `frames.jsonl`, so this table is what makes slide tests decisive.
 
+## Analysis results (2026-10-20)
+
+T01, T02 (dash shape), T02b and T04 (piecewise regimes) **passed** on existing data, and T03's main
+question (dash-slide timer = 0.3 s) is **answered** from the 16 pilot dash-slides. See
+[BEHAVIOURS.md](BEHAVIOURS.md#capture-checks-2026-10-20). Remaining capture work for these:
+T01 none; T02 only the from-a-run variant; T03 only a confirmation pair (0.28 s and 0.32 s) on build
+26059233; T04 a no-forward-input slide to see the 170 sustain stop, and the recorder's `friction`
+field for the 0.172 vs 0.175 difference.
+
 ## Tests
 
 | ID | Pri | Kind | Behaviour | What to do | Pass / what it settles |
