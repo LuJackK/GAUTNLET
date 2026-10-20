@@ -5,6 +5,17 @@ hypotheses. This folder lives in the game repository for version control but is
 outside Unity's Assets/Packages: no Unity installation, scene, or game assembly is
 needed. All commands below run from `Research/DeadlockMovement`.
 
+See [the reconstruction plan](RECONSTRUCTION_PLAN.md) for the capture pilot,
+measurement campaign, model-fitting method, and staged Unity validation.
+
+The [native capture MVP](capture/README.md) uses pinned Modlock with an observer
+to record movement inputs and before/after state. It includes a Windows build,
+synthetic lifecycle check, local-server run/stop commands, and trace validation.
+The [first human pilot analysis](capture/HUMAN_PILOT_ANALYSIS.md) reports real
+capture results and held-out jump predictions. The [advanced capture plan](capture/ADVANCED_CAPTURE_PLAN.md)
+specifies state-observation improvements, the next human experiments, and runner
+acceptance goals. Full timing/state semantics remain under investigation.
+
 ## Install on a new machine
 
 Install Python 3.10 or newer, then:
@@ -99,17 +110,21 @@ Remote machines clone this repository and rerun bootstrap. They must separately
 have access to the required game files for extraction. A Git clone contains the
 research workflow, not the Deadlock installation or local research exports.
 
-## Later: executable analysis
+## Static analysis
 
-Ghidra and REA are deferred until resource inspection produces specific questions
-that require compiled-code analysis. They are not required for this first stage.
-REA's documented setup is `npx rea-agents setup`; it changes agent registrations,
-so this bootstrap deliberately does not run it. Its Windows Ghidra support is
-currently described as experimental. Verify its current Node/JDK/provider
-requirements and pin versions before adding it to this reproducible toolchain.
-Use static copies under `local/binaries` and keep Ghidra projects under `local`.
+Moved forward on 2026-10-20: reading the movement code recovers states, thresholds and
+operation order that black-box captures resolve slowly or not at all. See
+[the static-analysis workflow](STATIC_ANALYSIS.md). `python bootstrap.py --ghidra`
+installs pinned Ghidra and, on Windows x64, a pinned JDK 21 under `.tools`;
+`static_analysis.py` snapshots the build, resolves Modlock's function signatures into
+labels, turns a schema dump into Ghidra structs, and runs headless analysis. Binaries,
+projects and dumps stay under `local/`. REA is still not installed: it changes agent
+registrations.
 
 ## References
+
+- [Automated experiment goals and capture requirements](capture/AUTOMATED_TESTING_SPEC.md)
+- [Input runner compiler, verifier and live-integration status](capture/INPUT_RUNNER.md)
 
 - [Source 2 Viewer CLI](https://s2v.app/ValveResourceFormat/guides/command-line.html)
 - [Pinned release](https://github.com/ValveResourceFormat/ValveResourceFormat/releases/tag/20.0)

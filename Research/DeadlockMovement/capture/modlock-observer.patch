@@ -1,0 +1,137 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b8418d6..52dc09c 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -253,6 +253,8 @@ else()
+   install(FILES ${MODLOCK_WASMTIME_LIBRARY} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+ endif()
+ 
++option(MODLOCK_BUILD_SCRIPT_RUNTIMES "Build optional WASI script runtimes" ON)
++if(MODLOCK_BUILD_SCRIPT_RUNTIMES)
+ # Luau mods run on Luau, compiled for WASI by wasi-sdk because Luau raises its
+ # errors as C++ exceptions, which need the WebAssembly exception handling
+ # proposal and its unwinder.
+@@ -406,6 +408,8 @@ install(FILES ${python_wasm} DESTINATION ${CMAKE_INSTALL_BINDIR})
+ install(FILES ${cpython_SOURCE_DIR}/LICENSE DESTINATION ${CMAKE_INSTALL_BINDIR}
+   RENAME python-LICENSE)
+ 
++endif()
++
+ # modlock-sigcheck checks the recorded signatures against game binaries on
+ # disk; it runs on any host, so it carries its own copy of the decoder.
+ add_executable(modlock-sigcheck src/sigcheck/main.cc third_party/safetyhook/Zydis.c)
+diff --git a/include/modlock/gameinterop/movement_hook.h b/include/modlock/gameinterop/movement_hook.h
+index c96570c..63af6bc 100644
+--- a/include/modlock/gameinterop/movement_hook.h
++++ b/include/modlock/gameinterop/movement_hook.h
+@@ -56,6 +56,11 @@ class MODLOCK_API MovementHook {
+  public:
+   enum class Module { kServer, kClient };
+   using Handler = std::function<bool(MovementCall&)>;
++  using Observer = std::function<void(const MovementCall&, const MovementCall&)>;
++
++  // Exclusive read-only observer: native runs exactly once, with no input or
++  // motion writes. Callback receives pre-native and immediate post-native copies.
++  static std::expected<MovementHook, std::string> Observe(Module module, Observer observer);
+ 
+   // kJumpButton is the native InButtonState bit for jump.
+   static constexpr uint64_t kJumpButton = 1u << 1;
+@@ -72,6 +77,8 @@ class MODLOCK_API MovementHook {
+   MovementHook& operator=(const MovementHook&) = delete;
+ 
+  private:
++  static std::expected<MovementHook, std::string> InstallInternal(
++      Module module, Handler handler, Observer observer);
+   struct Impl;
+   explicit MovementHook(std::unique_ptr<Impl> impl);
+   std::unique_ptr<Impl> impl_;
+diff --git a/src/gameinterop/movement_hook.cc b/src/gameinterop/movement_hook.cc
+index b86b6ac..78e7b8b 100644
+--- a/src/gameinterop/movement_hook.cc
++++ b/src/gameinterop/movement_hook.cc
+@@ -1,4 +1,5 @@
+ #include "modlock/gameinterop/movement_hook.h"
++#include "modlock/gameinterop/capture_observe_step.h"
+ 
+ #include <cstdio>
+ #include <cstring>
+@@ -76,6 +77,7 @@ struct Hook {
+   const char* entity_class = nullptr;
+   const char* pawn_class = nullptr;
+   MovementHook::Handler* handler = nullptr;
++  MovementHook::Observer* observer = nullptr;
+ #if defined(_WIN32)
+   safetyhook::InlineHook* detour = nullptr;
+ #endif
+@@ -136,6 +138,20 @@ void Dispatch(Hook& hook, void* services, void* data) {
+     Read(static_cast<const unsigned char*>(call.pawn), hook.layout->ground, call.ground_entity);
+     Read(static_cast<const unsigned char*>(call.pawn), hook.layout->move_type, call.move_type);
+   }
++  if (hook.observer) {
++    movement_capture::ObserveStep(call,
++        [&] { hook.detour->call<void>(services, data); },
++        [&](MovementCall& after) {
++          Read(move, kMoveOrigin, after.origin);
++          Read(move, kMoveVelocity, after.velocity);
++          if (after.pawn) {
++            Read(static_cast<const unsigned char*>(after.pawn), hook.layout->ground, after.ground_entity);
++            Read(static_cast<const unsigned char*>(after.pawn), hook.layout->move_type, after.move_type);
++          }
++        },
++        [&](const MovementCall& before, const MovementCall& after) { (*hook.observer)(before, after); });
++    return;
++  }
+   // The handler may rewrite buttons even when it leaves movement native. The
+   // native step always runs for its per-command bookkeeping, which client
+   // prediction requires; a replacement result then overwrites its motion.
+@@ -170,6 +186,7 @@ void ClientThunk(void* services, void* data) { Dispatch(g_hooks[1], services, da
+ struct MovementHook::Impl {
+   Hook* hook = nullptr;
+   Handler handler;
++  Observer observer;
+ #if defined(_WIN32)
+   safetyhook::InlineHook detour;
+ #endif
+@@ -190,9 +207,18 @@ MovementHook& MovementHook::operator=(MovementHook&&) noexcept = default;
+ MovementHook::~MovementHook() = default;
+ 
+ std::expected<MovementHook, std::string> MovementHook::Install(Module module, Handler handler) {
++  return InstallInternal(module, std::move(handler), {});
++}
++
++std::expected<MovementHook, std::string> MovementHook::Observe(Module module, Observer observer) {
++  return InstallInternal(module, {}, std::move(observer));
++}
++
++std::expected<MovementHook, std::string> MovementHook::InstallInternal(
++    Module module, Handler handler, Observer observer) {
+ #if defined(_WIN32)
+   auto& hook = g_hooks[module == Module::kServer ? 0 : 1];
+-  if (hook.handler || !handler) return std::unexpected("movement hook already installed or empty");
++  if (hook.handler || hook.observer || (!handler && !observer)) return std::unexpected("movement hook already installed or empty");
+   const auto image =
+       MappedModuleImage::ForModule(module == Module::kServer ? L"server.dll" : L"client.dll");
+   if (!image) return std::unexpected(image.error());
+@@ -200,11 +226,13 @@ std::expected<MovementHook, std::string> MovementHook::Install(Module module, Ha
+   if (!target) return std::unexpected(target.error());
+   auto impl = std::make_unique<Impl>();
+   impl->handler = std::move(handler);
++  impl->observer = std::move(observer);
+   const auto thunk = module == Module::kServer ? &ServerThunk : &ClientThunk;
+   impl->detour = safetyhook::create_inline(*target, reinterpret_cast<void*>(thunk),
+                                            safetyhook::InlineHook::StartDisabled);
+   if (!impl->detour) return std::unexpected("cannot create native movement hook");
+-  hook.handler = &impl->handler;
++  hook.handler = impl->handler ? &impl->handler : nullptr;
++  hook.observer = impl->observer ? &impl->observer : nullptr;
+   hook.detour = &impl->detour;
+   impl->hook = &hook;
+   if (!impl->detour.enable()) return std::unexpected("cannot enable native movement hook");
+@@ -212,6 +240,7 @@ std::expected<MovementHook, std::string> MovementHook::Install(Module module, Ha
+ #else
+   (void)module;
+   (void)handler;
++  (void)observer;
+   return std::unexpected("native movement replacement requires Windows");
+ #endif
+ }

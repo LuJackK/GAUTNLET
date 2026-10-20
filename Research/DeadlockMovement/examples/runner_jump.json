@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "trial_id": "example-standing-jump",
+  "target_slot": 0,
+  "tick_rate_hz": 64,
+  "max_ticks": 160,
+  "settle_ticks": 64,
+  "initial_conditions": {
+    "hero_id": 63,
+    "grounded": true,
+    "rest_speed_max": 0.1,
+    "min_stamina": 4,
+    "stable_ticks": 64,
+    "alive": true,
+    "configuration_id": "mina-superior-stamina",
+    "require_configuration_confirmation": true,
+    "inactive_states": [
+      "sliding",
+      "dashing",
+      "climbing",
+      "mantling"
+    ]
+  },
+  "initial_view": {
+    "yaw": 0,
+    "pitch": 0
+  },
+  "abort_policy": {
+    "pawn_change": true,
+    "world_change": true,
+    "respawn": true,
+    "timeout": true,
+    "lost_samples": true,
+    "missing_state": true,
+    "human_interruption": true,
+    "missed_deadline": true,
+    "release_all": true,
+    "max_prepare_ticks": 512
+  },
+  "events": [
+    {
+      "tick": 8,
+      "kind": "button",
+      "button": "jump",
+      "action": "press"
+    },
+    {
+      "tick": 9,
+      "kind": "button",
+      "button": "jump",
+      "action": "release"
+    }
+  ],
+  "assertions": []
+}
