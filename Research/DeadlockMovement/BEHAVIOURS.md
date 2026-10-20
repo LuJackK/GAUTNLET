@@ -31,8 +31,8 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-JMP-02 | Air (double) jump | decoded | set vy after 0.2 s, costs stamina | not started |
 | B-JMP-03 | Late jump (coyote) | decoded | 0.1 s grace | not started |
 | B-DSH-01 | Ground dash | confirmed | velocity set to max(speed, 20 m/s) | not started |
-| B-DSH-02 | Air dash | decoded (partial) | velocity set to max(speed, 25 m/s), once per air time | not started |
-| B-DSH-03 | Down dash | configured | none | not started |
+| B-DSH-02 | Air dash | decoded | velocity set to max(speed, 25 m/s), once per air time | not started |
+| B-DSH-03 | Down dash | decoded (partial) | none | not started |
 | B-DSH-04 | Dash-jump | decoded | jump cancels dash | not started |
 | B-SLD-01 | Slide activation | decoded | speed ≥ 9 m/s or on slope, after delay | not started |
 | B-SLD-02 | Slide sustain and exit | decoded | ends when crouch released | not started |
@@ -62,7 +62,7 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 - `friction = sv_friction (4) × surfaceFriction × pawnFriction × FRICTION_PERCENTAGE × GROUND_FRICTION_PERCENTAGE`,
   doubled while the vector at mv+0xf4 is set. That vector is the ground-dash displacement
   (B-DSH-01); friction is skipped entirely while its horizontal length exceeds 1 u. `pawnFriction`
-  is the pawn coefficient at +0x3fc (`0xdf87e0`): 1 normally, written by the slide (B-SLD-03).
+  is `CBaseEntity::m_flFriction` (pawn +0x3fc, `0xdf87e0`): 1 normally, written by the slide (B-SLD-03).
   The two percentages are modifier values 3 and 142 (`0xaf8870`), default 1.
 - **Open:** capture release time 0.500–0.516 s against a model 0.531 s with all multipliers at 1.
   Check surfaceFriction and the mv+0xf4 vector during those trials.
@@ -198,17 +198,35 @@ base hero is 10 m / 0.68 s and 8 m / 0.47 s).
   Deadlock: 16.1 m/s (bucket 1) or 14.7 m/s (base) for 0.62–0.68 s along the dash yaw.
 
 ### B-DSH-02 Air dash
-- **Deadlock** (`0x293f40`, partial): progress runs over the air duration (stat 0x5e). The dash
-  ends when the horizontal distance from its start exceeds the air distance (8 m) or progress
-  reaches 1. Each tick it overrides the forward/side move input (CMoveData +0x2c/+0x30) so input
-  points along the dash direction relative to the view, and sets
-  `vz = max(vz, 100) × dt × m_flDuringDrag`. This suppresses vertical motion; the value of
-  `m_flDuringDrag` is still to find. The initial velocity is set at cast in `0x25bae0` (unread).
-  Wiki: one air dash per airtime; 18.6 m/s for 0.43 s (bucket 1).
-- **GAUNTLET:** velocity set to `max(speed, 25 m/s)` for 0.2 s; one per airtime.
+Three phases: cast (`0x25bae0`), per tick (`0x293f40`) and end (`0x2b24e0`).
+- **Cast:** records cast time and start position, spends `citadel_player_dash_stamina_cost` 1
+  and counts consecutive air dashes. The impulse is
+  `dir(m_flDashAngle yaw, pitch 0) × airDistance / airDuration` (stats 0x5d / 0.0254 and 0x5e),
+  applied through modifier event 0x4c. That is 8 m / 0.43 s = 18.6 m/s (bucket 1) and
+  8 / 0.47 = 17.0 m/s (bucket 2), matching the wiki table. The wiki says the impulse combines with
+  prior momentum ("can stack with or conflict"); how exactly is in the event-0x4c handler, unread.
+  Sets the `"air_dash"` tag and a forward/back/left/right animation from the input angle.
+- **Per tick:** progress = time / air duration. The forward/side move input (CMoveData
+  +0x2c/+0x30) is overridden so input points along the dash direction relative to the view.
+  `vz = max(vz, 100) × dt × m_flDuringDrag`, which suppresses vertical motion (the value of
+  `m_flDuringDrag` is not in vdata, so it is a default). Ends when the horizontal distance from the
+  start exceeds the air distance, or progress reaches 1.
+- **End:** clears the cast state, sets `m_flAirDashDragStartTime`, and starts a post-dash drag for
+  `m_flPostDragDuration` 0.1 s. Related values whose rule is still unread: `m_flPostDrag` 4.0,
+  `m_flAirSpeedForMinDrag/MaxDrag` 12/14 (m/s), `m_flAirDashEndVelocityScale` 0.2,
+  `m_flAirDashAccPct` −40 (air acceleration while dashing?), `m_flGroundDashAirbornDrag` 0.7
+  (ground dash after leaving the ground).
+- **Limits:** one per airtime by default (`m_nConsecutiveAirDashes`; wiki: two with Vitality or
+  Stamina Mastery). Any direction.
+- **GAUNTLET:** velocity set to `max(speed, 25 m/s)` for 0.2 s; one per airtime; gravity off.
+- **Gap:** an impulse at distance/duration speed, input steering instead of fixed velocity, vertical
+  damping instead of gravity off, and post-dash drag.
 
 ### B-DSH-03 Down dash
-- **Deadlock:** costs 0.5 stamina (`citadel_player_dash_down_stamina_cost`). Rule unread.
+- **Deadlock** (`0x25bae0` with `m_bDownAirDash`): airborne only, triggered by a double crouch tap
+  within 28 ticks (0.44 s) (wiki). Costs 0.5 (`citadel_player_dash_down_stamina_cost`), counted
+  separately (`m_nConsecutiveDownDashes`; one per airtime by default). Applies a downward velocity of
+  `m_flDownwardAirDashSpeed` and ends at once. That speed is not in vdata (default value unread).
 - **GAUNTLET:** none.
 
 ### B-DSH-04 Dash-jump
@@ -218,9 +236,11 @@ base hero is 10 m / 0.68 s and 8 m / 0.47 s).
   dash scale, and `vz = m_flDashJumpVerticalSpeed` **425**. +0x16f4 has no schema name; it sits
   after `m_flDashJumpDistanceInMeters` 19 m, so it is likely that distance cached in units
   (≈ 748 u/s, 19 m/s), to verify.
-- Window: `m_flDashJumpStartTime` 0.3 to `m_flDashJumpEndTime` 0.55 s into the dash (wiki:
-  "about 2/3 of the way", and mistiming locks it out for the rest of that dash). A miss is capped at
-  `m_flDashJumpMissMaxSpeed` 250. Extra air control after a dash-jump:
+- **Window:** opens `m_flDashJumpStartTime` **0.3 s** after a *grounded* dash starts. Per the wiki
+  it lasts 0.2 s (0.3–0.5 s) and the stamina bar flashes light blue; vdata `m_flDashJumpEndTime` is
+  0.55, so the true end is 0.5 or 0.55 (test T07). Only a ground dash opens it, but you can
+  still dash-jump after leaving the ground. Mistiming locks dash-jump out for the rest of that dash
+  (wiki). A miss is capped at `m_flDashJumpMissMaxSpeed` 250. Extra air control after a dash-jump:
   `m_flDashJumpExtraAirControlTime` and `m_flDashJumpExtraAirControlPercent`.
 - **Open:** where the window and lockout are enforced (in the cast path, not the builder).
 - **GAUNTLET:** jumping cancels the dash and keeps horizontal velocity.
