@@ -1,0 +1,4 @@
+# Byte-exact inputs to the native recorder build: never convert line endings.
+# git apply needs the patch as committed, and prepare() compares the helper byte for byte.
+capture/modlock-observer.patch -text
+capture/native/observe_step.h -text
