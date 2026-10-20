@@ -21,12 +21,12 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | --- | --- | --- | --- | --- |
 | B-GND-01 | Ground friction | confirmed* | same law, different values | not started |
 | B-GND-02 | Ground accelerate | confirmed | Source accelerate, no min-speed clamp | not started |
-| B-GND-03 | Ground tick order | confirmed | friction then accelerate | not started |
+| B-GND-03 | Tick order | decoded | friction then accelerate | not started |
 | B-GND-04 | Crouch walking | configured | separate crouch speed/accel/friction | not started |
 | B-GND-05 | Sprint | configured | hidden, unused | not started |
 | B-AIR-01 | Gravity | confirmed | constant, suspended while dashing | not started |
-| B-AIR-02 | Air accelerate | decoded (partial) | custom steer + accelerate | not started |
-| B-AIR-03 | Air drag | located | none | not started |
+| B-AIR-02 | Air accelerate | decoded | custom steer + accelerate | not started |
+| B-AIR-03 | Air drag | decoded | none | not started |
 | B-JMP-01 | Ground jump | confirmed | set vy, auto-bhop, beats slide | not started |
 | B-JMP-02 | Air (double) jump | decoded | set vy after 0.2 s, costs stamina | not started |
 | B-JMP-03 | Late jump (coyote) | decoded | 0.1 s grace | not started |
@@ -38,11 +38,11 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-SLD-02 | Slide sustain and exit | decoded | ends when crouch released | not started |
 | B-SLD-03 | Slide friction and grace | decoded | linear drag 3 m/s² | not started |
 | B-SLD-04 | Slope sliding | decoded | gravity projected down the slope | not started |
-| B-SLD-05 | Slide steering | decoded (partial) | heading steer | not started |
+| B-SLD-05 | Slide steering | decoded | heading steer | not started |
 | B-SLD-06 | Sprint-slide boost | decoded (suspect) | none ("never multiplies speed") | not started |
 | B-SLD-07 | Landing slide boost | decoded | none | not started |
 | B-SLD-08 | Dash-slide | confirmed | none | not started |
-| B-SLD-09 | Slide-jump | located | ordinary jump | not started |
+| B-SLD-09 | Slide-jump | decoded | ordinary jump | not started |
 | B-SLD-10 | Drop-slide (crouch while falling) | decoded | none | not started |
 | B-SLD-11 | Slide cancel and lockout | configured | none | not started |
 | B-STA-01 | Stamina pool and regen | configured (wiki) | 3 bars, 1/s after 1 s delay | not started |
@@ -84,10 +84,21 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 - **Gap:** min-accel-speed clamp; values. Wishspeed derivation (`0xb0b640`) not read yet.
 - **Check:** walk from rest to 95%: 23 ticks at 64 Hz (passes against capture).
 
-### B-GND-03 Ground tick order
-- **Deadlock** (confirmed by capture): friction, then accelerate. Accelerate-then-friction never
-  reaches top speed.
-- **Open:** where jump, dash, slide and gravity sit within `ProcessMovement` (`0xb2f7b0`).
+### B-GND-03 Tick order
+- **Deadlock** (decoded; ground order confirmed by capture). `ProcessMovement` (`0xb2f7b0`) uses
+  `dt = frametime × time scale`, first resolves a moving parent (`0xb09060`), then by move type:
+  walk (2) → `0xb40940`, noclip (7) → fly move. Walk move, in order:
+  1. strafe-reversal tracking: rapid left/right input reversals within 0.3 s count up; a factor
+     (services +0x2f0) is 0 during them and ramps back to 1 over 0.15 s (consumer not found yet);
+  2. friction: air drag `0xb076c0` if airborne, else ground friction `0xb08540` (skipped by mv flag +0x10f);
+  3. acceleration: `AirAccelerate` `0xb07140` if airborne, else `Accelerate` `0xb06ec0` (skipped by +0x110);
+  4. dash displacement to velocity `0xb094a0`: velocity −= last dash velocity, += `disp / dt`;
+  5. slip acceleration `0xb09ab0` (`citadel_movement_slip_accel` 200);
+  6. gravity `0xb08740` (B-AIR-01);
+  7. `0xb092e0` (pushes/base velocity, unread) and `0xb07ef0` (unread);
+  8. stepping and collision move (`0xb09d80`, `0xb3b320`, `0xb09670`), ground categorisation (`0xb32800`).
+  Ability movement callbacks (interface +0x4c0 slot 4: slide, dash) run from a dispatch site not
+  yet located; tests T03/T04 show the one-tick timing.
 - **GAUNTLET:** dash, then jump, then slide or friction+accelerate, then gravity, then collision move.
 
 ### B-GND-04 Crouch walking / B-GND-05 Sprint
@@ -102,24 +113,52 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 ## Air
 
 ### B-AIR-01 Gravity
-- **Deadlock:** `sv_gravity` 800 u/s² (confirmed: measured 800.003). `MODIFIER_VALUE_GRAVITY_SCALE` exists.
-- **Open:** whether dashes suspend gravity; integration order (the position fit's linear term
-  differs from its velocity intercept).
-- **GAUNTLET:** constant 20 m/s², not applied while dashing.
+- **Deadlock** (`0xb08740`), confirmed: one full step per tick,
+  `vz −= gravity (800) × pawn gravity scale × per-move factor (mv +0x160) × dt`. If
+  `MODIFIER_VALUE_FALL_SPEED_MAX` is set, the step is limited so fall speed does not exceed it.
+  Skipped while mv flags +0x10c, +0x10d, +0x111 or +0x112 are set. The **air dash sets +0x111**, so
+  gravity is off during an air dash. The gravity convar handle is `0x3d482e0` (value 800 per capture;
+  name not resolved).
+- **Capture:** measured 800.003 u/s²; the first airborne vz = 300 − 800/64 fits one full step after
+  the jump sets vz.
+- **GAUNTLET:** constant 20 m/s² (Deadlock 20.32), not applied while dashing (ground or air).
 
 ### B-AIR-02 Air accelerate
-- **Deadlock** (`0xb06ec0`, partial): airborne `accelspeed = wishspeed × sv_airaccelerate × 0.25 × dt`,
-  same projection cap as on the ground. Whether wishspeed is capped in air (Source caps it at 30)
-  is in the unread air-move function `0xb07140`.
-- **GAUNTLET:** heading steer (`airControlAcceleration`) plus accelerate to `maxSpeed` 6, or a
-  Source-style capped mode at `sourceAirStrafeStrength` 1.
-- **Gap:** pending `0xb07140`. Do not change GAUNTLET air control before it is read.
+- **Deadlock** (`0xb07140`): Source `AirAccelerate` with Deadlock's wish-speed cap.
+  - `wishdir`, `wishspeed` come from `0xb0b640` (input, view, hero max move speed `0xb150f0`,
+    modifiers). Wishspeed is 0 while a ground-dash vector is active.
+  - **Cap:** `cap = lerp(citadel_aircontrol_speed_slow 80, citadel_aircontrol_speed_fast 50,
+    remap(horizontal speed, 600, 800, 0, 1))`: 80 u/s (2.03 m/s) below 600 u/s of carried speed,
+    easing to 50 u/s above 800. An `AIR_SPEED_MAX`-style override (`0xb15de0`) or an active ability
+    limit replaces or lowers it. `wishspeed = min(wishspeed, airControlPercent × cap)`.
+  - `addspeed = wishspeed − v·wishdir`; if positive,
+    `v += wishdir × min(addspeed, airaccel × airAccelPercent × wishspeed × dt)` with
+    `airaccel = sv_airaccelerate` 10 (or `citadel_fly_accelerate` 2 under mv flag +0x10d).
+  - A ground dash carried into the air accelerates toward the dash velocity instead.
+  - Modifier state 0x1f: horizontal velocity snaps to `wishdir × wishspeed` (instant control).
+- Note: an earlier entry said air uses `Accelerate` × 0.25. That branch of `0xb06ec0` is never
+  reached from walk movement, which calls `0xb07140` when airborne.
+- **GAUNTLET:** heading steer (`airControlAcceleration`) plus accelerate to `maxSpeed` 6, or the
+  Source-style capped mode at `sourceAirStrafeStrength` 1 with `sourceAirSpeedCap`. The capped mode is
+  the right structure: cap 80 → 50 u/s (2.03 → 1.27 m/s) blended by speed 600–800 u/s, air
+  accelerate 10.
 
 ### B-AIR-03 Air drag
-- **Deadlock** (`0xb076c0`, located): reads `citadel_air_drag_min` 0.2 and `sv_stopspeed`.
-  Related: slows affect air drag (`citadel_enable_slows_affect_air_drag`, penalty scale 0.35),
-  and the slide-jump air drag in B-SLD-09.
+- **Deadlock** (`0xb076c0`). Skipped in pawn state bit 14.
+  - **Horizontal**, when |v.xy| ≥ 0.1: split velocity into components along and across the pawn's
+    facing. `drag = max(citadel_air_drag_min 0.2, air-drag modifier) × slow multiplier`
+    (`citadel_enable_slows_affect_air_drag`, penalty scale 0.35). `newspeed = max(0, speed −
+    max(speed, sv_stopspeed 100) × drag × dt)`, the same law as ground friction. Each component is
+    scaled to it when moving faster than the air speed override, or when there is no input on that
+    axis and an override is active. With no override (normal case), both components always drag.
+    So carried air speed decays at about 0.2/s (≈ 18% per second) above 100 u/s.
+  - **Vertical**, only under mv flag +0x10d or pawn state bit 10: the same law on |vz| with
+    `MODIFIER_VALUE_AIR_DRAG` (the slide supplies this, B-SLD-09) plus another value.
+  - **Wall slide** (pawn state bit 8, falling): vz eased by a remap up to
+    `citadel_wall_slide_terminal_velocity` 600 (deferred).
 - **GAUNTLET:** none.
+- **Check:** horizontal speed through the airborne part of the pilot's running jumps should fall by
+  about (1 − 0.2/64) per tick.
 
 ## Jumping
 
@@ -187,13 +226,17 @@ base hero is 10 m / 0.68 s and 8 m / 0.47 s).
   `move = D × (C(t/T) − C(t_prev/T)) × dashDir(yaw) × dashScale`, written to `CMoveData +0xf4`.
   `D` is the distance in units and `C` the hero position curve. That vector is the "+0xf4"
   term in ground friction (B-GND-01): friction is skipped while it is set and larger than 1 u, so
-  the dash is not braked. Velocity itself is not set by the curve.
+  the dash is not braked. `0xb094a0` turns it into velocity each tick: subtract the previous
+  tick's dash velocity, add `displacement / dt`. So the dash velocity is layered on the velocity
+  the player already had (test T02 from running). Wish speed is 0 while the vector is active, so input
+  does not accelerate during a ground dash.
 - **Capture:** Mina's 10 m / 0.62 s = 393.70 u / 0.62 s = **635.00 u/s**; measured flat dash peak
   **635.005 u/s**. So the curve's slope is ≈ 1 over the dash (constant speed). After the dash,
   speed decays by ground friction. The 0.719 s spent above 400 u/s fits 0.62 s plus about 8 ticks of
   friction from 635 down to 400.
-- **Open:** how the displacement becomes motion (the per-tick distance divided by dt, or added in
-  the move step); the exact curve shape; whether the dash leaves its speed as velocity at the end.
+- **Open:** the exact curve shape; whether pre-dash velocity is cleared at cast (the wiki says ground
+  dashes "set velocity to a fixed amount", which conflicts with the layering above); whether the dash
+  velocity is removed at the end or left to decay (the post-dash decay in the capture suggests it is left).
 - **GAUNTLET:** velocity set to `max(speed, 20 m/s)` for 0.3 s; gravity off; friction ×0.5.
   Deadlock: 16.1 m/s (bucket 1) or 14.7 m/s (base) for 0.62–0.68 s along the dash yaw.
 
@@ -320,11 +363,13 @@ slide resets the coefficient to 1.
 
 ### B-SLD-05 Steering
 - **Deadlock** (`0x295d70`): with movement input, velocity rotates about the vertical axis by
-  `turn × dt × m_flTurnSpeed (90°/s) × scale`, with `turn` clamped to [−1, 1] (input relative to
-  velocity). On flat ground `scale` is a modifier (likely `MOVEMENT_SLIDE_TURN_SCALE`); on slopes
-  it is `1 − clamp(|angle term| / 45°, 0, 1)`. Rotation only, so speed is kept.
-- **Open:** the exact `turn` function (`0x254fc70`) and the slope angle term;
-  `m_flTurnMin/MaxAngDiff` not seen yet.
+  `turn × dt × m_flTurnSpeed (90°/s) × scale` degrees, with
+  `turn = clamp(AngleDiff(inputYaw, velocityYaw), −1, 1)` (`0x254fc70` wraps the difference to
+  ±180°). So the slide turns toward the input direction at the full 90°/s until within 1° of it.
+  On flat ground `scale` is a modifier (likely `MOVEMENT_SLIDE_TURN_SCALE`, 1 by default); on slopes it
+  is `1 − clamp(|angle term| / 45°, 0, 1)`, so steering weakens on steep slopes. Rotation only, so
+  speed is kept.
+- **Open:** the slope angle term; `m_flTurnMin/MaxAngDiff` (5 and 2) not seen on this path.
 - **GAUNTLET:** heading steer at `slideControlAcceleration`.
 
 ### B-SLD-06 Sprint-slide boost
@@ -342,8 +387,8 @@ slide resets the coefficient to 1.
   the slope check passes, and crouch was pressed within `m_flButtonPressWindow` 5 s: start the
   slide. If `f ≥ 300`, pending boost =
   `remap(f, 300, 700, 100, 600) × Bias(remap(slopeDeg, 5°, 45°, 0.25, 1), 0.6)`.
-  Flat landings get no boost. `Bias` is assumed to be Source's `x^(log(b)/log(0.5))`
-  (`0x2550650`, to verify).
+  Flat landings get no boost. `Bias` (`0x2550650`) is Schlick's bias, not Source's power form:
+  `Bias(x, b) = x / ((1/b − 2)(1 − x) + 1)`, with x and b clamped to [0, 1].
 - **GAUNTLET:** none.
 
 ### B-SLD-08 Dash-slide
@@ -359,8 +404,13 @@ slide resets the coefficient to 1.
 - **GAUNTLET:** none.
 
 ### B-SLD-09 Slide-jump
-- **Deadlock:** the slide supplies `MODIFIER_VALUE_AIR_DRAG` (provider `0x2632e0`, unread);
-  `m_flAirDragAfterJumpTime` 0.5, `m_flLateSlideJumpWindow` 0.25.
+- **Deadlock** (`0x2632e0`): the slide supplies `MODIFIER_VALUE_AIR_DRAG` only after the slide has
+  ended **and** from the **second** jump of a slide session (`m_nJumpsThisSlideSession > 1`):
+  `drag = remap(time since slide ended, 0, m_flAirDragAfterJumpTime 0.5, m_flAirDragAfterJump 2.0, 0)`.
+  Air drag uses `max(citadel_air_drag_min 0.2, this)` (B-AIR-03), so a chained slide-jump starts at
+  10× normal air drag and eases back over 0.5 s. The first slide-jump of a session is not penalised.
+  `m_flLateSlideJumpWindow` 0.25 (where it is read: not yet seen). How jumps per session are counted and
+  reset is not read yet.
 - **GAUNTLET:** ordinary jump.
 
 ### B-SLD-10 Drop-slide

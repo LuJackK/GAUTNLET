@@ -41,7 +41,8 @@ by schema name, not hard-coded offsets):
 | ID | Pri | Kind | Behaviour | What to do | Pass / what it settles |
 | --- | --- | --- | --- | --- | --- |
 | T01 | P0 | analysis, then capture | B-GND-01 | Re-time release-to-stop in `human-20261018-02` from the exact release tick (input-sample phase). If the gap remains, capture 5 walk-release trials with surface friction logged | Model 34 ticks vs capture 32–33: find the missing tick(s) or the extra multiplier |
-| T02 | P0 | analysis | B-DSH-01 | Per-tick horizontal speed and distance of the 3 flat dashes in `human-20261018-02` | Constant 635 u/s for 0.62 s (curve slope ≈ 1), 10 m total; then decay matching friction 4 / stop 100 |
+| T02 | P0 | analysis, then capture | B-DSH-01 | Per-tick horizontal speed and distance of the 3 flat dashes in `human-20261018-02`; then capture dashes from a run (forward, sideways, backwards relative to the run) | Constant 635 u/s for 0.62 s (curve slope ≈ 1), 10 m total; then decay by friction 4 / stop 100. From a run: is pre-dash velocity kept and added (decoded layering) or replaced (wiki)? |
+| T02b | P0 | analysis | B-AIR-03 | Horizontal speed through the airborne part of the pilot's 4 running jumps and the dash-crouch-jump trials | Decay by (1 − 0.2/64) per tick above 100 u/s, with no input |
 | T03 | P0 | capture | B-SLD-08 | Ground dash, then crouch at about 0.1, 0.2, 0.25, 0.3, 0.35, 0.5 s into the dash | Entry speed 450 before the dash-slide timer and 650 after; locates `m_flGroundDashSlideTime` (expected 0.3 s) |
 | T04 | P0 | analysis, then capture | B-SLD-03, B-SLD-02 | Refit existing dash-crouch trials piecewise; then hold crouch after a dash-slide until the slide stops | Decay 0.7/s for 1 s, then 3.2/s; stops below 170 u/s on flat; friction coefficient in the recorder matches |
 | T05 | P0 | capture | B-JMP-02 | Standing double jump (no input), then jump forward and air-jump sideways | Air jump sets vz = 300 (not 225, the 75%); horizontal redirect gain per jump (gives `m_flMaxSpeedDelta`); 1 stamina per air jump |
@@ -54,7 +55,7 @@ by schema name, not hard-coded offsets):
 | T12 | P1 | capture | B-SLD-05 | Flat dash-slide with full left and full right input, mouse still | Yaw rate 90°/s and speed kept; settles the `turn` function |
 | T13 | P1 | capture | B-SLD-01 | Running at walk or sprint speed on flat, press crouch; then dash and crouch at speeds just above and below 250 | No slide below 350 u/s on flat (sprint alone 8.8 m/s cannot); dash threshold 250 |
 | T14 | P1 | capture | B-SLD-09 | Slide-jump at slide start, mid-slide, and within 0.25 s after the slide ends | Air drag after a slide-jump (0.5 s); late slide-jump window 0.25 s |
-| T15 | P2 | capture | B-AIR-02, B-AIR-03 | After decoding air movement: strafing in air with and without mouse turn, no input, at low and high carried speed | Air acceleration 0.25 × `sv_airaccelerate` and any wishspeed cap; air drag curve (`citadel_air_drag_min` 0.2) |
+| T15 | P1 | capture | B-AIR-02, B-AIR-03, B-GND-03 | In the air: hold one strafe key with no mouse turn; then strafe while turning the mouse; at carried speeds below 600 and above 800 u/s (use a dash or dash-jump). Also rapid A/D tapping on the ground and in the air | Wish-speed cap 80 u/s below 600, 50 above 800; air accelerate 10; air drag on both axes; whether the strafe-reversal factor (0.3 s window, 0.15 s ramp) reduces acceleration |
 | T16 | P2 | capture | B-WAL-01, B-WAL-02, B-MNT-01 | Deferred behaviours | Only after the core port |
 
 ## Unity tests after porting (kind *unity*)
@@ -78,6 +79,6 @@ production tick rate, in metres (×0.0254):
 ## Suggested order
 
 1. Recorder prerequisites, smoke-tested on one trial each.
-2. Analysis-only T01, T02, T04 (no game needed; can happen before the session).
+2. Analysis-only T01, T02 (first part), T02b, T04 (no game needed; can happen before the session).
 3. Capture P0 in this order: T03, T07, T05, T06, T08, then T04's capture part.
-4. P1 as time allows: T13, T10, T11 (needs the ramps), T12, T14, T09.
+4. P1 as time allows: T15, T13, T10, T11 (needs the ramps), T12, T14, T09.

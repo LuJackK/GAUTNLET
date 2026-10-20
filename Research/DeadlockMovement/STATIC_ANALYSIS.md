@@ -157,13 +157,25 @@ them. **Unit scale:** `0x3c58a0` divides by 0.0254 (metres to units).
 **Slide:** fully mapped in [BEHAVIOURS.md](BEHAVIOURS.md#slide) (B-SLD-01 to 10). Dash-slide
 entry speeds predict the pilot's 643 and 445 u/s peaks to the unit.
 
-### Next
+**Core decoding complete (2026-10-20):** ground, air, gravity, tick order, jumps, dashes, slide.
+See [BEHAVIOURS.md](BEHAVIOURS.md) for each rule and [TEST_TRIAGE.md](TEST_TRIAGE.md) for checks.
+`DisassembleFunctions.java` covers cases the decompiler hides (tail calls with register arguments).
 
-1. Slide leftovers: air-drag provider `0x2632e0` (B-SLD-09), `Bias` `0x2550650`, steering turn
-   function `0x254fc70`, how `m_flGroundDashSlideTime` is set, and the sprint-boost suspicion.
-2. Air movement and air drag (`0xb07140`, `0xb076c0`). Wishspeed derivation (`0xb0b640`).
-3. Dash: `CCitadel_Ability_Dash` overrides in the +0x4c0 interface (slots 2, 5, 8 and others).
-4. Order of calls inside `ProcessMovement`, and the release-time gap (surfaceFriction, mv+0xf4).
+### Remaining open details
+
+Settle these by test where cheaper than reading code:
+
+| Detail | Behaviour | Route |
+| --- | --- | --- |
+| Defaults with no vdata value: `m_flDuringDrag`, `m_flDownwardAirDashSpeed`, `m_flMaxSpeedDelta` | B-DSH-02/03, B-JMP-02 | VData constructor, or test T08/T09/T05 |
+| How `m_flGroundDashSlideTime` is set | B-SLD-08 | test T03 |
+| Sprint-boost reachability | B-SLD-06 | test T10 |
+| Where `AirJumpVerticalSpeedPercent` 75 applies | B-JMP-02 | test T05 |
+| Dash-jump window enforcement and JumpVData +0x16f4 | B-DSH-04 | test T07 |
+| Pre-dash velocity at cast; air-dash event-0x4c composition | B-DSH-01/02 | tests T02, T08 |
+| Ability movement-callback dispatch site; strafe-reversal factor consumer | B-GND-03 | code, or tests T04/T15 |
+| Max-speed function (sprint, crouch) `0xb56b50` | B-GND-04/05 | code |
+| Release-to-stop 1–2 tick gap | B-GND-01 | test T01 |
 
 ## First targets
 
