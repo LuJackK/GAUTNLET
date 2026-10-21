@@ -109,12 +109,15 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
       frames_->Push(frame.str());
       return true;
     }
-    if (!engine_) return false;
+    if (!engine_) { std::cerr << "capture: no engine host\n"; return false; }
     auto connections = engine_->OnConnection(std::make_shared<ProbeConnections>());
-    if (!connections) return false;
+    if (!connections) { std::cerr << "capture: cannot subscribe to connections\n"; return false; }
     subscription_.Add(std::move(*connections));
     if (solo_probe_) {
-      if (!engine_->Precache({"hero_wraith"}, {})) return false;
+      if (auto precached = engine_->Precache({"hero_wraith"}, {}); !precached) {
+        std::cerr << "capture: precache failed: " << precached.error() << '\n';
+        return false;
+      }
     }
     // Installing after the world is ready ensures schema registration has
     // finished. Removing on world ending prevents stale cached schema offsets.
@@ -138,10 +141,10 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
           if (!server || !server->ServerCommand("sv_hibernate_when_empty 0\n"))
             ProbeError("cannot request continued simulation on empty server");
         });
-    if (!worlds) return false;
+    if (!worlds) { std::cerr << "capture: cannot subscribe to worlds\n"; return false; }
     subscription_.Add(std::move(*worlds));
     auto ending = engine_->OnWorldEnding([this] { hook_.reset(); pawn_observer_.Invalidate(); });
-    if (!ending) return false;
+    if (!ending) { std::cerr << "capture: cannot subscribe to world ending\n"; return false; }
     subscription_.Add(std::move(*ending));
     return true;
   }
