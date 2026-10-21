@@ -92,6 +92,21 @@ not execute (run -04 ticks 40352, 40385, 49848, 61383). P1 tests not run. Use
 | T15 | P1 | capture | B-AIR-02, B-AIR-03, B-GND-03 | In the air: hold one strafe key with no mouse turn; then strafe while turning the mouse; at carried speeds below 600 and above 800 u/s (use a dash or dash-jump). Also rapid A/D tapping on the ground and in the air | Wish-speed cap 80 u/s below 600, 50 above 800; air accelerate 10; air drag on both axes; whether the strafe-reversal factor (0.3 s window, 0.15 s ramp) reduces acceleration |
 | T16 | P2 | capture | B-WAL-01, B-WAL-02, B-MNT-01 | Deferred behaviours | Only after the core port |
 
+## Collision and tech block (added 2026-10-21)
+
+Collision behaviour is the next gap after the movement rules; community tech depends on it. Record the
+exact spot of each trial (position from the trace) so its collision mesh can be extracted and measured.
+
+| ID | Pri | Behaviour | What to do | Settles |
+| --- | --- | --- | --- | --- |
+| C01 | P1 | wall impact | Walk, then dash, into a flat wall at about 15°, 45° and 75° to the wall; hold input into the wall for a moment | Speed kept along the wall (clip/overbounce), and whether input into a wall slows you |
+| C02 | P1 | steps | Walk, then slide, up and down a staircase; note the stair height | Step height; whether slides survive stairs |
+| C03 | P1 | slopes | Walk up, down and across ramps of different steepness, including the steepest you can stand on | Walkable slope limit; slide-only slopes |
+| C04 | P1 | ramp crest | Run, then dash and slide, over the top of a ramp onto flat ground | Ground snap versus launch at a crest |
+| C05 | P1 | ceiling | Jump and air jump into a low ceiling; crouch under a low gap | Vertical speed on ceiling hit; crouch hull clearance |
+| C06 | P1 | ledge edge | Walk and slide off a ledge edge slowly and fast | Edge snap and when ground is lost |
+| C07 | P2 | tech reference | 2–3 tricks the user knows work (e.g. corner boost, wall bounce, slide-hop chain), 3–5 reps each | Reference traces for acceptance testing in GAUNTLET |
+
 ## Unity tests after porting (kind *unity*)
 
 These lock each confirmed rule into the GAUNTLET test suite at the Deadlock tick (64 Hz) and at the
