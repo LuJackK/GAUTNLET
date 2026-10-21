@@ -84,6 +84,23 @@ no movement convar default changed. Ticks are listed in each run's `activity-not
 | B-SLD-08 (new build) | 0.3 s timer | crouch ≤ 16 ticks (0.25 s) → 450; ≥ 21 ticks (0.328 s) → 650 (10 reps) |
 | B-SLD-02 | stop below 170 u/s with no forward input | dash-slide friction lasts exactly 64 ticks (1.0 s), then 0.8; the slide ends (friction back to 1) on the tick after speed falls below 170 (at 167.6), in 3 of 3 reps |
 
+Live session 2026-10-21: `human-tests-20261021-01` (**build 26097978**; Mina, no items, dl_midtown). The
+gate reproduced the dash and dash-slide tick for tick. Per-tick checks ran from scratch scripts against
+the step trace and the frame `friction` field. Slope angles come from the trace, not the mesh.
+
+| Behaviour | Prediction | Measured |
+| --- | --- | --- |
+| B-AIR-02 | air accelerate with cap 80 → 50 (blended over 600–800 u/s), `sv_airaccelerate` 10, after air drag | per-tick velocity residual median 0.010, max 0.021 u/s over 173 low-speed air ticks; 0.014 median over 373 dash-jump ticks at 470–700 u/s, so the speed blend is right. The cap uses speed after drag (both readings fit equally) |
+| B-AIR-02 (new) | none | **after a dash-jump, air acceleration is about 1.3× (14.1 vs 10.9 u/s per tick) until about 37–38 ticks (≈ 0.6 s) after the ground dash cast**, then normal. It only shows with sideways input; along the dash, `addspeed` ≤ 0. The ability's `dashing` flag is already off by then. Source field not identified |
+| B-DSH-04 (new) | — | a dash-jump costs **1 more stamina** (frame stamina 1.07 → 0.07 on the jump tick, 6 of 6) |
+| B-DSH-02 | — | an air dash does not fire if the movement key goes down on the same tick as the dash press (0 of 5, plus 1 in the early trial; no stamina spent). A key held at least one tick earlier always fires. The diagonal-only press fired 5 of 5 |
+| B-SLD-03 | slope friction 0.15; flat grace 0.05 for 0.6 s; then 0.8; stop below 170 | recorded 10/64 on the ramp (0.15 rounded to the nearest 1/64), 3/64 = 0.05 from the first tick under 8° for **39 ticks** (0.6 s = 38.4), then 51/64, and the slide ends the tick after speed drops below 170 (165.7). Drops per tick fit `max(v,100) × 4 × c / 64` to 0.02 u/s. Six slides |
+| B-SLD-04 | `lerp(500, 850, (deg − 5)/40)` along the downhill direction | **+10.99 u/s per tick, constant**, added between hooked steps (it shows up in the next step's incoming velocity). That is 703 u/s², i.e. a 28.2° surface; the trajectory gives 27–28° (the session's 24.6° came from the walk path). Exact check waits for the ramp's collision normal |
+| B-SLD-01 | slope start needs the slope check | crouch-only landings at 0 u/s on the ramp gave no slide (2 of 2); W + crouch landings started one at 80 + 11 u/s. A walk (319 u/s) on flat never starts a slide (2 of 2), consistent with the 350 threshold |
+| B-SLD-07 | landing boost ≈ 350 for a fall at 590 u/s on 28° | **no boost** in 3 of 3 slide landings (entry 91 = 80 + slope step). Likely cause: the slide starts through activation on the landing tick, so the landing callback's "not sliding" test fails. Open, low priority |
+
+Stamina regen here was about 0.24 per second (0.0037 per tick).
+
 Open from the live session: some air-dash presses did not execute despite stamina and a movement key
 (run -04 ticks 40352, 40385, 49848; ground 61383). `m_flSpeedAdjust` is never visible in after-frame state
 (set and consumed within one tick).
