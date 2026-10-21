@@ -31,6 +31,7 @@ BINARIES = ('modlock-host.exe', 'movement_capture.dll')
 SDK_DLL_NAMES = ('modlock_sdk.dll', 'libmodlock_sdk.dll')
 SIGNATURES = 'game_signatures.txtpb'
 BUILD_MANIFEST = 'capture-build.json'
+RUNNER_MODES = ('apply', 'observe')
 
 
 class SessionError(ValueError):
@@ -284,6 +285,22 @@ def stop_capture(run, *, root=ROOT):
             'note': 'The plugin will request graceful server shutdown; no process was killed.'}
 
 
+def runner_start(run, *, root=ROOT):
+    """Arm the scripted runner; the plugin starts at its next engine tick."""
+    destination = _running_live_directory(run, root)
+    manifest = json.loads((destination / 'manifest.json').read_text(encoding='utf-8'))
+    if manifest.get('scripted') is not True:
+        raise SessionError('This run has no scripted input schedule.')
+    request = destination / 'runner-start.request'
+    try:
+        with request.open('xb'):
+            pass
+    except FileExistsError as error:
+        raise SessionError('Runner start was already requested for this run.') from error
+    return {'status': 'runner_start_requested', 'request_file': str(request),
+            'note': 'Takes effect once the target slot is occupied; confirm trial_start in runner.jsonl.'}
+
+
 def mark_capture(run, trial, event, *, root=ROOT):
     if not isinstance(trial, str) or not IDENTIFIER.fullmatch(trial):
         raise SessionError('Trial ID must be 1-64 ASCII letters, digits, underscores or hyphens.')
@@ -327,7 +344,8 @@ def _check_session_mode(validation, check_only):
 
 
 def run_capture(sdk_bin, run, *, check_only=False, game_dir=None, map_name='dl_midtown',
-                port=27067, root=ROOT, solo_probe=False, solo_drop=False):
+                port=27067, root=ROOT, solo_probe=False, solo_drop=False,
+                input_schedule=None, runner_mode='apply'):
     root = Path(root).resolve()
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,79}', run):
         raise SessionError('Run slug must be 1-80 letters, digits, underscores or hyphens.')
@@ -341,6 +359,19 @@ def run_capture(sdk_bin, run, *, check_only=False, game_dir=None, map_name='dl_m
         raise SessionError('Solo probe requires a live game directory.')
     if type(solo_drop) is not bool or (solo_drop and not solo_probe):
         raise SessionError('Solo drop requires --solo-probe.')
+    if runner_mode not in RUNNER_MODES:
+        raise SessionError('Runner mode must be apply or observe.')
+    if input_schedule is not None:
+        if solo_probe:
+            raise SessionError('A scripted input schedule cannot be combined with the solo probe.')
+        input_schedule = Path(input_schedule).expanduser().resolve()
+        _require_file(input_schedule)
+        try:
+            first_line = input_schedule.read_text(encoding='ascii').splitlines()[0].strip()
+        except (OSError, UnicodeError, IndexError) as error:
+            raise SessionError(f'Cannot read input schedule: {error}') from error
+        if first_line != 'GRS1':
+            raise SessionError('Input schedule must be a native GRS1 file from runner_schedule.py.')
     state = _inspect_checkout(root)
     if not state['patch_applied'] or not state['helper_present']:
         raise SessionError('Observer SDK is not fully prepared; run prepare first.')
@@ -381,11 +412,23 @@ def run_capture(sdk_bin, run, *, check_only=False, game_dir=None, map_name='dl_m
         arguments.append('--solo-probe')
     if solo_drop:
         arguments.append('--solo-drop')
+    schedule_copy = None
+    if input_schedule is not None:
+        # The run keeps its own copy, so the manifest hash always describes
+        # exactly what the server executed.
+        schedule_copy = destination / 'input-schedule.grs'
+        shutil.copyfile(input_schedule, schedule_copy)
+        arguments.extend(['--input-schedule', str(schedule_copy), '--runner-mode', runner_mode])
     manifest = {'manifest_version': 1, 'created_utc': datetime.now(timezone.utc).isoformat(),
                 'run': run, 'status': 'unverified', 'native_compatibility': 'unverified',
                 'synthetic': check_only,
                 'solo_probe': solo_probe,
                 'solo_drop': solo_drop,
+                'scripted': schedule_copy is not None,
+                'input_source': 'scripted_usercmd' if schedule_copy is not None else 'human',
+                'runner_mode': runner_mode if schedule_copy is not None else None,
+                'input_schedule': ({'path': str(schedule_copy), **_hash_file(schedule_copy)}
+                                   if schedule_copy is not None else None),
                 'evidence_status': 'synthetic_only_not_real_game_evidence' if check_only else
                                    'live_attempt_compatibility_unverified',
                 'repository': MODLOCK_URL, 'revision': state['head'],
@@ -411,6 +454,11 @@ def run_capture(sdk_bin, run, *, check_only=False, game_dir=None, map_name='dl_m
                                                'stop', '--run', run])
         print('Starting local server capture; native compatibility remains unverified.', file=sys.stderr)
         print(f'Stop gracefully: {stop_command}', file=sys.stderr, flush=True)
+        if schedule_copy is not None:
+            start_command = subprocess.list2cmdline([sys.executable, str(root / 'capture_session.py'),
+                                                    'runner-start', '--run', run])
+            print(f'SCRIPTED RUN ({runner_mode}): join as the target slot, stand still, then: {start_command}',
+                  file=sys.stderr, flush=True)
     launch_error = None
     try:
         with (destination / 'stdout.log').open('xb') as stdout, (destination / 'stderr.log').open('xb') as stderr:
@@ -454,6 +502,8 @@ def main(argv=None):
     mark.add_argument('--run', required=True)
     mark.add_argument('--trial', required=True)
     mark.add_argument('--event', choices=MARKER_EVENTS, required=True)
+    start = commands.add_parser('runner-start', help='Arm the scripted input runner of a running capture.')
+    start.add_argument('--run', required=True)
     run = commands.add_parser('run', help='Record a new synthetic check or a local server capture.')
     run.add_argument('--sdk-bin', type=Path, required=True)
     run.add_argument('--run', required=True)
@@ -464,6 +514,8 @@ def main(argv=None):
     run.add_argument('--port', type=int, default=27067)
     run.add_argument('--solo-probe', action='store_true', help='Create one native bot for an automatic 20-second spawn/idle probe.')
     run.add_argument('--solo-drop', action='store_true', help='Raise the probe bot once by 256 raw units after five seconds; record its native fall.')
+    run.add_argument('--input-schedule', type=Path, help='Native GRS1 schedule from runner_schedule.py; the run is labelled scripted.')
+    run.add_argument('--runner-mode', choices=RUNNER_MODES, default='apply', help='observe logs the commands without rewriting them.')
     args = parser.parse_args(argv)
     try:
         if args.command == 'prepare':
@@ -478,10 +530,14 @@ def main(argv=None):
         elif args.command == 'mark':
             report = mark_capture(args.run, args.trial, args.event)
             code = 0
+        elif args.command == 'runner-start':
+            report = runner_start(args.run)
+            code = 0
         else:
             report = run_capture(args.sdk_bin, args.run, check_only=args.check_only,
                                  game_dir=args.game_dir, map_name=args.map_name, port=args.port,
-                                 solo_probe=args.solo_probe, solo_drop=args.solo_drop)
+                                 solo_probe=args.solo_probe, solo_drop=args.solo_drop,
+                                 input_schedule=args.input_schedule, runner_mode=args.runner_mode)
             code = report['exit_code']
         print(json.dumps(report, indent=2, allow_nan=False))
         return code

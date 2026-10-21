@@ -9,6 +9,6 @@ install(TARGETS movement_capture RUNTIME DESTINATION bin LIBRARY DESTINATION bin
 include(CTest)
 if(BUILD_TESTING)
   add_executable(capture_core_test recorder_core_test.cc)
-  target_compile_features(capture_core_test PRIVATE cxx_std_17)
+  target_compile_features(capture_core_test PRIVATE cxx_std_20)
   add_test(NAME capture_core COMMAND capture_core_test)
 endif()

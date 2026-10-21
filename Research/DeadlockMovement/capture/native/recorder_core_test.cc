@@ -3,6 +3,7 @@
 #include "modifier_reader.h"
 #include <cstring>
 #include "observe_step.h"
+#include "usercmd_runner.h"
 #include <cstdlib>
 #include <iostream>
 #include <memory>
@@ -145,5 +146,61 @@ int main(int argc, char** argv) {
   movement_capture::WriteState(idle_out, movement_capture::State{});
   Require(idle_out.str().find("\"dash_vector\":null") != std::string::npos,
           "inactive dash serialised as null");
+  {
+    using namespace movement_capture::usercmd;
+    // A command carrying an unknown field and human subtick moves.
+    std::string base = Serialize({Varint(1, 7), Varint(2, 900),
+        Message(3, Serialize({Varint(1, 8), Varint(2, 8), Varint(3, 0)})),
+        Message(4, Serialize({Float(1, 1.5f), Float(2, 90.f), Float(3, 0.f)})),
+        Float(5, 1.f), Float(6, -1.f), Varint(14, 16777215),
+        Message(18, Serialize({Varint(1, 8)})), Message(18, Serialize({Varint(1, 16)})),
+        Message(19, "crc")});
+    std::string cmd = Serialize({Message(1, base), Float(6, 0.25f), Varint(4, 3)});
+    CommandInput seen;
+    Require(ReadCommand(cmd, seen), "command parses");
+    Require(seen.held == 8 && seen.changed == 8 && seen.pitch == 1.5f && seen.yaw == 90.f &&
+            seen.forward == 1.f && seen.left == -1.f && seen.command_number == 7 && seen.client_tick == 900,
+            "command fields read");
+    Require(!ReadCommand("\x0a\xff", seen), "truncated command rejected");
+    Require(!ReadCommand(Serialize({Varint(4, 1)}), seen), "command without base rejected");
+    CommandInput out = seen;
+    out.held = 72339069014638592ull; out.changed = out.held; out.pitch = 0; out.yaw = -45.f;
+    out.forward = 0; out.left = 0;
+    Require(WriteCommand(cmd, out), "command rewrites");
+    CommandInput back;
+    Require(ReadCommand(cmd, back) && back.held == out.held && back.changed == out.changed &&
+            back.yaw == -45.f && back.forward == 0 && back.left == 0 && back.command_number == 7 &&
+            back.client_tick == 900, "rewrite round trips and keeps identity");
+    std::vector<Field> top, inner;
+    Parse(cmd, top);
+    Require(Find(top, 4) && Find(top, 4)->value == 3, "wrapper unknown field preserved");
+    Parse(Find(top, 1)->bytes, inner);
+    Require(Find(inner, 14) && Find(inner, 19) && !Find(inner, 18), "unknown kept, subtick moves dropped");
+    // Runner: two trials, edges derived from the previous applied state.
+    const std::string schedule = "GRS1\ntrial a 0 3 start 1 2 3 0 0 0\nt 0 0 0 0 90\nt 8 1 0 0 90\nt 8 1 0 0 90\nend\n"
+                                 "trial b 0 1\nt 0 0 0 0 0\nend\n";
+    std::istringstream text(schedule);
+    std::vector<Trial> trials;
+    std::string error;
+    Require(ParseSchedule(text, trials, error) && trials.size() == 2 && trials[0].start && !trials[1].start,
+            "schedule parses");
+    std::istringstream bad("GRS1\ntrial a 0 2\nt 0 0 0 0 0\nend\n");
+    std::vector<Trial> rejected;
+    Require(!ParseSchedule(bad, rejected, error), "short trial rejected");
+    Runner runner(trials);
+    CommandInput idle;
+    Require(!runner.Next(idle), "idle runner passes input through");
+    runner.Arm();
+    Require(runner.phase() == Runner::Phase::kNeedsStart && !runner.Next(idle), "armed runner waits for start state");
+    runner.BeginTrial(0);
+    auto a0 = runner.Next(idle), a1 = runner.Next(idle), a2 = runner.Next(idle);
+    Require(a0 && a1 && a2 && a0->input.changed == 0 && a1->input.changed == 8 && a2->input.changed == 0 &&
+            a1->input.forward == 1.f && a2->tick == 2, "edges follow the applied sequence");
+    Require(runner.phase() == Runner::Phase::kNeedsStart && runner.trial_index() == 1, "next trial waits");
+    runner.BeginTrial(0);
+    auto b0 = runner.Next(idle);
+    Require(b0 && b0->input.changed == 0 && b0->trial == 1 && runner.phase() == Runner::Phase::kDone, "schedule ends");
+    Require(!runner.Next(idle), "finished runner passes input through");
+  }
   std::cout << "capture core tests passed\n";
 }

@@ -371,6 +371,54 @@ class SessionTests(unittest.TestCase):
             launch.assert_not_called()
         self.assertEqual((directory / 'manifest.json').read_bytes(), manifest)
 
+    def test_scripted_run_is_labelled_and_keeps_its_own_schedule_copy(self):
+        source = self.root / 'schedule.grs'
+        source.write_text('GRS1\ntrial a 0 1\nt 0 0.0 0.0 0.0 0.0\nend\n', encoding='ascii')
+        with self.host():
+            result = self.run_check('scripted', input_schedule=source, runner_mode='observe')
+        directory = Path(result['run_directory'])
+        manifest = json.loads((directory / 'manifest.json').read_text(encoding='utf-8'))
+        self.assertTrue(manifest['scripted'])
+        self.assertEqual(manifest['input_source'], 'scripted_usercmd')
+        self.assertEqual(manifest['runner_mode'], 'observe')
+        arguments = manifest['argv']
+        copy = directory / 'input-schedule.grs'
+        self.assertEqual(arguments[arguments.index('--input-schedule') + 1], str(copy))
+        self.assertEqual(arguments[arguments.index('--runner-mode') + 1], 'observe')
+        self.assertGreater(arguments.index('--input-schedule'), arguments.index('--capture-output'))
+        self.assertEqual(copy.read_bytes(), source.read_bytes())
+        self.assertEqual(manifest['input_schedule']['sha256'], sessions._hash_file(copy)['sha256'])
+
+    def test_ordinary_run_is_labelled_human(self):
+        with self.host():
+            result = self.run_check('ordinary')
+        manifest = json.loads((Path(result['run_directory']) / 'manifest.json').read_text(encoding='utf-8'))
+        self.assertFalse(manifest['scripted'])
+        self.assertEqual(manifest['input_source'], 'human')
+        self.assertNotIn('--input-schedule', manifest['argv'])
+
+    def test_scripted_run_rejects_foreign_schedule_and_bad_mode(self):
+        source = self.root / 'schedule.json'
+        source.write_text('{}', encoding='utf-8')
+        with self.assertRaises(sessions.SessionError):
+            self.run_check('foreign', input_schedule=source)
+        source.write_text('GRS1\n', encoding='ascii')
+        with self.assertRaises(sessions.SessionError):
+            self.run_check('badmode', input_schedule=source, runner_mode='replace')
+        with self.assertRaises(sessions.SessionError):
+            self.run_check('solo', input_schedule=source, solo_probe=True)
+
+    def test_runner_start_needs_a_running_scripted_capture(self):
+        directory = self.running_manifest()
+        with self.assertRaises(sessions.SessionError):
+            sessions.runner_start('live', root=self.root)
+        (directory / 'manifest.json').write_text(json.dumps(
+            {'synthetic': False, 'transport_status': 'running', 'scripted': True}), encoding='utf-8')
+        self.assertEqual(sessions.runner_start('live', root=self.root)['status'], 'runner_start_requested')
+        self.assertTrue((directory / 'runner-start.request').is_file())
+        with self.assertRaises(sessions.SessionError):
+            sessions.runner_start('live', root=self.root)
+
     def test_stop_refuses_missing_finished_synthetic_and_invalid_runs(self):
         with self.assertRaises(sessions.SessionError):
             sessions.stop_capture('missing', root=self.root)

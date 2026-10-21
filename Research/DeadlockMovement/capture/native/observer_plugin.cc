@@ -1,6 +1,8 @@
 #include "recorder_core.h"
 #include "frame_writer.h"
 #include "frame_observation.h"
+#include "usercmd_runner.h"
+#include "usercmd_hook.h"
 
 #include <filesystem>
 #include <iostream>
@@ -23,6 +25,10 @@
 #include "modlock/gameinterop/movement_hook.h"
 #include "modlock/gameinterop/server_clock.h"
 #include "modlock/plugin_library.h"
+#include "modlock/gameinterop/native_memory.h"
+#include <google/protobuf/message_lite.h>
+#include <fstream>
+#include <iomanip>
 
 namespace {
 class ProbeConnections final : public modlock::gameinterop::ConnectionEventSink {
@@ -54,6 +60,8 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
       if (arg == "--capture-output" && i + 1 < context.argc) output_ = context.argv[++i];
       if (arg == "--solo-probe") solo_probe_ = true;
       if (arg == "--solo-drop") solo_drop_ = true;
+      if (arg == "--input-schedule" && i + 1 < context.argc) schedule_path_ = context.argv[++i];
+      if (arg == "--runner-mode" && i + 1 < context.argc) runner_mode_ = context.argv[++i];
     }
   }
   uint32_t InterfaceVersion() const override { return modlock::PluginInterfaceVersion; }
@@ -76,6 +84,7 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
     frames_->Start(check_only_);
     writer_ = std::make_unique<movement_capture::Writer>(stream_);
     writer_->Start(check_only_);
+    if (!schedule_path_.empty() && !LoadRunner()) return false;
     return static_cast<bool>(stream_);
   }
   bool Start() override {
@@ -123,6 +132,7 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
             return;
           }
           hook_ = std::move(*observed);
+          InstallRunnerHook();
           std::cout << "capture: native server observer installed; layout/timing still unverified\n";
           auto server = modlock::gameinterop::EngineServer::Resolve();
           if (!server || !server->ServerCommand("sv_hibernate_when_empty 0\n"))
@@ -142,6 +152,7 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
     StopIfRequested();
     if (check_only_ || !hook_) return;
     PollMarkers();
+    PumpRunner();
     frame_caps_.Resolve();
     if (solo_probe_ && !probe_started_) StartProbe();
     for (int32_t slot = 0; slot < 64; ++slot) {
@@ -186,6 +197,11 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
   }
   void Tick() override { StopIfRequested(); }
   void Stop() override {
+    movement_capture::UsercmdHook::Remove();
+    if (runner_ && !check_only_ && runner_->phase() != movement_capture::usercmd::Runner::Phase::kDone) {
+      RunnerLog("{\"type\":\"runner_unfinished\"}");
+      failed_ = true;
+    }
     hook_.reset();
     subscription_.Reset();
     if (writer_) {
@@ -257,6 +273,156 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
       std::cout << "capture-marker " << id << ' ' << trial << ' ' << event << std::endl;
     }
   }
+  // ---- scripted user-command runner ------------------------------------
+  using Phase = movement_capture::usercmd::Runner::Phase;
+  bool ApplyMode() const { return runner_mode_ == "apply"; }
+  bool LoadRunner() {
+    if (runner_mode_ != "apply" && runner_mode_ != "observe") {
+      std::cerr << "capture: --runner-mode must be apply or observe\n";
+      return false;
+    }
+    std::ifstream input(schedule_path_, std::ios::binary);
+    std::vector<movement_capture::usercmd::Trial> trials;
+    std::string error;
+    if (!input || !movement_capture::usercmd::ParseSchedule(input, trials, error)) {
+      std::cerr << "capture: cannot read input schedule: " << error << '\n';
+      return false;
+    }
+    const auto path = output_.parent_path() / "runner.jsonl";
+    if (std::filesystem::exists(path)) return false;
+    runner_log_.open(path, std::ios::out | std::ios::binary);
+    if (!runner_log_) return false;
+    runner_ = std::make_unique<movement_capture::usercmd::Runner>(std::move(trials));
+    RunnerLog("{\"type\":\"runner_session\",\"scripted\":true,\"mode\":\"" + runner_mode_ +
+              "\",\"trials\":" + std::to_string(runner_->trial_count()) + "}");
+    return true;
+  }
+  void RunnerLog(const std::string& body) {
+    runner_log_ << body << '\n';
+    runner_log_.flush();
+  }
+  std::string ClockField() {
+    std::string out = ",\"clock_tick\":";
+    if (auto clock = modlock::gameinterop::ServerClock::Resolve())
+      if (auto observed = clock->Observe()) return out + std::to_string(observed->tick);
+    return out + "null";
+  }
+  void InstallRunnerHook() {
+    if (!runner_ || usercmd_installed_) return;
+    auto module = modlock::gameinterop::MappedModuleImage::ForModule(L"server.dll");
+    if (!module) { failed_ = true; RunnerLog("{\"type\":\"runner_error\",\"error\":\"no server image\"}"); return; }
+    auto installed = movement_capture::UsercmdHook::Install(*module,
+        [this](void* controller, void* cmds, int count, bool paused) { OnUsercmds(controller, cmds, count, paused); });
+    if (!installed) {
+      failed_ = true;
+      std::cerr << "capture: usercmd hook unavailable: " << installed.error() << '\n';
+      RunnerLog("{\"type\":\"runner_error\",\"error\":\"hook install failed\"}");
+      return;
+    }
+    usercmd_installed_ = true;
+    std::cout << "capture: usercmd runner hook installed (" << runner_mode_ << ")" << std::endl;
+  }
+  // Arms on runner-start.request, then performs each trial's optional start
+  // state before the next command of the target slot is rewritten.
+  void PumpRunner() {
+    if (!runner_ || !usercmd_installed_) return;
+    if (runner_->phase() == Phase::kIdle) {
+      std::error_code error;
+      if (std::filesystem::is_regular_file(output_.parent_path() / "runner-start.request", error)) {
+        runner_->Arm();
+        RunnerLog("{\"type\":\"runner_armed\"" + ClockField() + "}");
+      }
+      return;
+    }
+    if (runner_->phase() != Phase::kNeedsStart) return;
+    const int32_t slot = runner_->slot();
+    const auto& trial = runner_->trial();
+    if (!modlock::gameinterop::ConnectionTracker::StateForSlot(slot).occupied) return;
+    void* pawn = pawn_observer_.PawnForSlot(slot);
+    if (!pawn) return;
+    std::string start = "null";
+    if (trial.start) {
+      std::ostringstream text;
+      text.imbue(std::locale::classic());
+      text << std::setprecision(9) << '[' << (*trial.start)[0] << ',' << (*trial.start)[1] << ',' << (*trial.start)[2]
+           << ',' << (*trial.start)[3] << ',' << (*trial.start)[4] << ',' << (*trial.start)[5] << ']';
+      start = text.str();
+      if (ApplyMode()) {
+        auto module = modlock::gameinterop::MappedModuleImage::ForModule(L"server.dll");
+        if (!module) return RunnerFail("start state: no server image");
+        auto motion = modlock::gameinterop::ResolvePawnMotion(*module);
+        if (!motion) return RunnerFail("start state unavailable");
+        motion->set_origin(pawn, trial.start->data());
+        motion->set_velocity(pawn, trial.start->data() + 3);
+      }
+    }
+    const std::string id = trial.id;
+    const bool applied_start = trial.start && ApplyMode();
+    runner_->BeginTrial(0);
+    RunnerLog("{\"type\":\"trial_start\",\"trial\":\"" + id + "\",\"index\":" +
+              std::to_string(runner_->trial_index()) + ",\"start_state\":" + start +
+              ",\"start_applied\":" + (applied_start ? "true" : "false") + ClockField() + "}");
+  }
+  static std::optional<int32_t> SlotOfController(void* controller) {
+    // CEntityInstance::m_pEntity (+0x10) -> CEntityIdentity::m_EHandle (+0x10).
+    void* identity = nullptr;
+    uint32_t handle = 0;
+    if (!modlock::gameinterop::ReadNative(static_cast<char*>(controller) + 0x10, &identity, sizeof(identity)) || !identity ||
+        !modlock::gameinterop::ReadNative(static_cast<char*>(identity) + 0x10, &handle, sizeof(handle)))
+      return std::nullopt;
+    const int32_t slot = static_cast<int32_t>(handle & 0x7fff) - 1;
+    if (slot < 0 || slot >= 64) return std::nullopt;
+    return slot;
+  }
+  void RunnerFail(const char* what) {
+    failed_ = true;
+    RunnerLog(std::string("{\"type\":\"runner_error\",\"error\":\"") + what + "\"}");
+    runner_ = nullptr;
+  }
+  static std::string CommandJson(const movement_capture::usercmd::CommandInput& c) {
+    std::ostringstream out;
+    out.imbue(std::locale::classic());
+    out << std::setprecision(9) << "{\"held\":\"" << c.held << "\",\"changed\":\"" << c.changed
+        << "\",\"scroll\":\"" << c.scroll << "\",\"angles\":[" << c.pitch << ',' << c.yaw << ',' << c.roll
+        << "],\"axes\":[" << c.forward << ',' << c.left << ',' << c.up << "],\"command_number\":"
+        << c.command_number << ",\"client_tick\":" << c.client_tick << '}';
+    return out.str();
+  }
+  void OnUsercmds(void* controller, void* cmds, int count, bool paused) {
+    if (!runner_ || paused || runner_->phase() != Phase::kRunning) return;
+    const auto slot = SlotOfController(controller);
+    if (!slot || *slot != runner_->slot()) return;
+    for (int i = 0; i < count && runner_ && runner_->phase() == Phase::kRunning; ++i) {
+      auto* message = reinterpret_cast<google::protobuf::MessageLite*>(
+          static_cast<char*>(cmds) + i * movement_capture::UsercmdHook::kCommandStride +
+          movement_capture::UsercmdHook::kMessageOffset);
+      const size_t size = message->ByteSizeLong();
+      if (size == 0 || size > 4096) return RunnerFail("unexpected command size");
+      std::string bytes(size, '\0');
+      if (!message->SerializeToArray(bytes.data(), static_cast<int>(size))) return RunnerFail("serialize failed");
+      movement_capture::usercmd::CommandInput observed;
+      if (!movement_capture::usercmd::ReadCommand(bytes, observed)) return RunnerFail("unrecognised command layout");
+      const auto applied = runner_->Next(observed);
+      if (!applied) return;
+      std::string readback = "null";
+      if (ApplyMode()) {
+        if (!movement_capture::usercmd::WriteCommand(bytes, applied->input) ||
+            !message->ParseFromArray(bytes.data(), static_cast<int>(bytes.size())))
+          return RunnerFail("rewrite failed");
+        std::string again(message->ByteSizeLong(), '\0');
+        movement_capture::usercmd::CommandInput check;
+        if (message->SerializeToArray(again.data(), static_cast<int>(again.size())) &&
+            movement_capture::usercmd::ReadCommand(again, check))
+          readback = CommandJson(check);
+      }
+      RunnerLog("{\"type\":\"cmd\",\"trial\":" + std::to_string(applied->trial) + ",\"tick\":" +
+                std::to_string(applied->tick) + ClockField() + ",\"observed\":" + CommandJson(observed) +
+                ",\"applied\":" + CommandJson(applied->input) + ",\"readback\":" + readback + "}");
+      if (runner_->phase() != Phase::kRunning)
+        RunnerLog(std::string("{\"type\":\"") + (runner_->phase() == Phase::kDone ? "runner_done" : "trial_end") +
+                  "\",\"index\":" + std::to_string(applied->trial) + ClockField() + "}");
+    }
+  }
   void StartProbe() {
     if (probe_started_) return;
     probe_started_ = true;
@@ -322,6 +488,11 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
     writer_->Push(s);
     latest_movement_ = movement_count_++;
   }
+  std::filesystem::path schedule_path_;
+  std::string runner_mode_ = "apply";
+  std::unique_ptr<movement_capture::usercmd::Runner> runner_;
+  std::ofstream runner_log_;
+  bool usercmd_installed_ = false;
   modlock::EngineHost* engine_;
   bool check_only_, failed_ = false;
   bool quit_requested_ = false;
