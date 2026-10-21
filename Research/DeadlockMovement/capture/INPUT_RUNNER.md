@@ -148,3 +148,40 @@ mapping (`m_pEntity +0x10`, `m_EHandle +0x10`), and that Modlock's protobuf is
 ABI-compatible with the engine's for `ByteSizeLong`/`SerializeToArray`/
 `ParseFromArray` on the engine-owned message. A wrong assumption should show as a
 `runner_error` or a crash of the throwaway test server, not as silent input.
+
+## Live run-book (21 October 2026)
+
+Status on game build 26097978: SDK rebuilt, native tests, synthetic check and
+all Python tests pass. On a live server the usercmd hook installs (the pattern
+and prologue match). All three schedules below load in the real plugin
+(check-only). Nothing has been run with a connected player yet. The solo-probe
+smoke capture no longer starts on this build: Modlock's
+`game-rules.precache-call` signature does not resolve. That is a Modlock
+signature problem and does not affect human or scripted runs.
+
+Schedules (rebuild with the commands in the previous section if lost; `local/`
+is ignored), all with start state `[-442,-3155,376]`, zero velocity:
+
+| File | Trials | Wall time |
+| --- | --- | --- |
+| `local/runner-20261021/observe-ground-dash.grs` | ground dash, observe mode | ~3 s |
+| `local/runner-20261021/parity.grs` | 0 ground dash, 1 dash-slide 27, 2 dash-slide 25, 3 ground jump, 4 air jump, 5 variant dash-slide 21 | ~76 s |
+| `local/runner-20261021/sweep-dashjump.grs` | 26 dash-jumps, jump 15..40 ticks into the dash | ~5.5 min |
+
+The client needs `-vconsole -insecure` to join the insecure local server. Join
+`127.0.0.1:27067`, pick Mina without items, stand still and don't touch the
+keyboard while a runner is active. Then, per run:
+`capture_session.py runner-start --run RUN`, wait for `runner_done` in
+`runner.jsonl`, `capture_session.py stop --run RUN`, then
+`runner_schedule.py check`.
+
+1. Observe run (`--runner-mode observe`). Passes when `runner.jsonl` has 200
+   consecutive `cmd` records whose `observed` command numbers increase by one
+   and whose held masks are 0 while you stand still. That settles the stride,
+   protobuf and slot assumptions without writing input.
+2. Parity run (apply) with `parity.grs`. Compare each trial with
+   `runner_parity.py --trial N`: trial 0 against `-01` dash 48250, 1 against `-01`
+   dash 67255, 2 against `-04` dash 9697, 3 against `-01` jump 104943, 4 against
+   `-01` jump 104983 with `--occurrence 1`. Trial 5 has no human reference.
+3. Sweep (apply) with `sweep-dashjump.grs`, only after parity passes, then
+   `runner_sweep.py --sweep local/runner-20261021/sweep-dashjump.json`.

@@ -187,7 +187,7 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest='command', required=True)
     convert = commands.add_parser('convert', help='compiled schedule/sweep JSON, or a protocol JSON, to native format')
-    convert.add_argument('source', type=Path)
+    convert.add_argument('source', type=Path, nargs='+', help='several sources run as consecutive trials')
     convert.add_argument('--output', required=True, type=Path)
     convert.add_argument('--start-state', type=_floats, help='x,y,z,vx,vy,vz applied before every trial')
     convert.add_argument('--rest-ticks', type=int, default=DEFAULT_REST_TICKS)
@@ -198,11 +198,15 @@ def main(argv=None):
     arguments = parser.parse_args(argv)
     try:
         if arguments.command == 'convert':
-            document = json.loads(arguments.source.read_text(encoding='utf-8-sig'))
-            if 'kind' not in document:
-                document = compile_protocol(load_protocol(arguments.source))
-            trials = build_trials(document, start_state=arguments.start_state,
-                                  rest_ticks=arguments.rest_ticks, slot=arguments.slot)
+            trials = []
+            for source in arguments.source:
+                document = json.loads(source.read_text(encoding='utf-8-sig'))
+                if 'kind' not in document:
+                    document = compile_protocol(load_protocol(source))
+                trials += build_trials(document, start_state=arguments.start_state,
+                                       rest_ticks=arguments.rest_ticks, slot=arguments.slot)
+            if len({trial['slot'] for trial in trials}) != 1:
+                raise ScheduleError('all trials of one run must target the same slot')
             text = format_native(trials)
             with arguments.output.open('x', encoding='utf-8', newline='\n') as destination:
                 destination.write(text)

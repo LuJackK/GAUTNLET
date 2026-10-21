@@ -72,6 +72,21 @@ class ConvertTests(unittest.TestCase):
             delays.append(jump - dash)
         self.assertEqual(delays, list(range(15, 41)))
 
+    def test_cli_runs_several_protocols_as_consecutive_trials(self):
+        directory = Path(tempfile.mkdtemp())
+        self.addCleanup(lambda: shutil.rmtree(directory, ignore_errors=True))
+        output = directory / 'parity.grs'
+        code = schedule.main(['convert', str(ROOT / 'examples' / 'parity_ground_jump.json'),
+                              str(ROOT / 'examples' / 'parity_dash_slide_25.json'), '--output', str(output),
+                              '--start-state=-442,-3155,376,0,0,0', '--rest-ticks', '3'])
+        self.assertEqual(code, 0)
+        trials = schedule.parse_native(output.read_text(encoding='utf-8'))
+        self.assertEqual([t['id'] for t in trials], ['parity-ground-jump', 'parity-dash-slide-25'])
+        self.assertEqual(trials[1]['start'], [-442, -3155, 376, 0, 0, 0])
+        held = [t[0] for t in trials[1]['ticks']]
+        dash = next(i for i, h in enumerate(held) if h & schedule.DASH)
+        self.assertEqual(next(i for i, h in enumerate(held) if h & schedule.CROUCH) - dash, 25)
+
     def test_rejects_truncated_native_file(self):
         with self.assertRaises(schedule.ScheduleError):
             schedule.parse_native('GRS1\ntrial a 0 2\nt 0 0.0 0.0 0.0 0.0\nend\n')
