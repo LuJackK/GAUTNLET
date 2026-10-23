@@ -57,16 +57,22 @@ class FrameCapabilities {
     ground_dash_ = state("MODIFIER_STATE_GROUND_DASHING");
     air_dash_ = state("MODIFIER_STATE_AIR_DASHING");
     climbing_ = state("MODIFIER_STATE_IS_CLIMBING_ROPE");
+    wall_slide_ = state("MODIFIER_STATE_WALLSLIDE");
     std::cout << "capture-modifier-layout {\"reader_revision\":2,\"ground_dash\":";
     Optional(std::cout, ground_dash_);
     std::cout << ",\"air_dash\":"; Optional(std::cout, air_dash_);
     std::cout << ",\"climbing\":"; Optional(std::cout, climbing_);
+    std::cout << ",\"wall_slide\":"; Optional(std::cout, wall_slide_);
     std::cout << ",\"ordinary_mask_bytes\":" << (ordinary_ ? ordinary_->size : 0)
               << ",\"predicted_mask_bytes\":" << (predicted_ ? predicted_->size : 0) << "}" << std::endl;
     sliding_ = field("CCitadel_Ability_Slide", "m_bIsSliding", 1).has_value();
     friction_ = field("CBaseEntity", "m_flFriction", sizeof(float));
     services_ = field("CBasePlayerPawn", "m_pMovementServices", sizeof(void*));
     surface_friction_ = field("CPlayer_MovementServices_Humanoid", "m_flSurfaceFriction", sizeof(float));
+    ground_normal_ = field("CPlayer_MovementServices_Humanoid", "m_groundNormal", sizeof(float) * 3);
+    fall_velocity_ = field("CPlayer_MovementServices_Humanoid", "m_flFallVelocity", sizeof(float));
+    colliding_ = field("CCitadelPlayer_MovementServices", "m_bColliding", 1);
+    landed_ = field("CCitadelPlayer_MovementServices", "m_bLandedOnGround", 1);
     channeling_ = field("CCitadelBaseAbility", "m_bChanneling", 1).has_value();
   }
   std::optional<bool> Modifier(void* pawn, std::optional<int64_t> flag) const {
@@ -76,6 +82,7 @@ class FrameCapabilities {
   std::optional<bool> GroundDash(void* pawn) const { return Modifier(pawn, ground_dash_); }
   std::optional<bool> AirDash(void* pawn) const { return Modifier(pawn, air_dash_); }
   std::optional<bool> Climbing(void* pawn) const { return Modifier(pawn, climbing_); }
+  std::optional<bool> WallSliding(void* pawn) const { return Modifier(pawn, wall_slide_); }
   // Pawn friction coefficient (the slide writes it; 1 otherwise) and the
   // movement services' surface friction. Unresolved or unreadable is null.
   std::optional<float> Friction(const void* pawn) const { return ReadFloat(pawn, friction_); }
@@ -87,9 +94,39 @@ class FrameCapabilities {
       return std::nullopt;
     return ReadFloat(services, surface_friction_);
   }
+  // Movement-services state for walls, slopes and landings. The ground normal
+  // is the last ground plane the services saw; it is stale while airborne.
+  std::optional<std::array<double, 3>> GroundNormal(const void* pawn) const {
+    const unsigned char* services = Services(pawn);
+    if (!services || !ground_normal_) return std::nullopt;
+    float v[3] = {};
+    if (!modlock::gameinterop::ReadNative(services + *ground_normal_, v, sizeof(v)) ||
+        !std::isfinite(v[0]) || !std::isfinite(v[1]) || !std::isfinite(v[2]))
+      return std::nullopt;
+    return std::array<double, 3>{v[0], v[1], v[2]};
+  }
+  std::optional<float> FallVelocity(const void* pawn) const { return ReadFloat(Services(pawn), fall_velocity_); }
+  std::optional<bool> Colliding(const void* pawn) const { return ReadBool(Services(pawn), colliding_); }
+  std::optional<bool> LandedOnGround(const void* pawn) const { return ReadBool(Services(pawn), landed_); }
   bool sliding() const { return sliding_; }
   bool channeling() const { return channeling_; }
  private:
+  const unsigned char* Services(const void* pawn) const {
+    if (!pawn || !services_) return nullptr;
+    const unsigned char* services = nullptr;
+    if (!modlock::gameinterop::ReadNative(static_cast<const unsigned char*>(pawn) + *services_,
+                                          &services, sizeof(services)))
+      return nullptr;
+    return services;
+  }
+  static std::optional<bool> ReadBool(const void* base, std::optional<size_t> offset) {
+    if (!base || !offset) return std::nullopt;
+    unsigned char value = 0;
+    if (!modlock::gameinterop::ReadNative(static_cast<const unsigned char*>(base) + *offset,
+                                          &value, sizeof(value)) || value > 1)
+      return std::nullopt;
+    return value == 1;
+  }
   static std::optional<float> ReadFloat(const void* base, std::optional<size_t> offset) {
     if (!base || !offset) return std::nullopt;
     float value = 0;
@@ -99,10 +136,11 @@ class FrameCapabilities {
     return value;
   }
   std::optional<size_t> friction_, services_, surface_friction_;
+  std::optional<size_t> ground_normal_, fall_velocity_, colliding_, landed_;
   bool resolved_ = false, sliding_ = false, channeling_ = false;
   std::optional<size_t> property_;
   std::optional<ModifierMaskField> ordinary_, predicted_;
-  std::optional<int64_t> ground_dash_, air_dash_, climbing_;
+  std::optional<int64_t> ground_dash_, air_dash_, climbing_, wall_slide_;
 };
 
 inline void WriteFrameFields(std::ostream& out,
@@ -136,6 +174,13 @@ inline void WriteFrameFields(std::ostream& out,
   out << ",\"mantling\":"; NullableBool(out, mantling);
   out << ",\"friction\":"; Optional(out, caps.Friction(native_pawn));
   out << ",\"surface_friction\":"; Optional(out, caps.SurfaceFriction(native_pawn));
+  out << ",\"wall_sliding\":"; NullableBool(out, caps.WallSliding(native_pawn));
+  out << ",\"ground_normal\":";
+  if (auto normal = caps.GroundNormal(native_pawn)) Array(out, *normal);
+  else out << "null";
+  out << ",\"fall_velocity\":"; Optional(out, caps.FallVelocity(native_pawn));
+  out << ",\"colliding\":"; NullableBool(out, caps.Colliding(native_pawn));
+  out << ",\"landed_on_ground\":"; NullableBool(out, caps.LandedOnGround(native_pawn));
   out << ",\"stamina\":";
   if (pawn.stamina) {
     out << "{\"current\":"; Number(out, pawn.stamina->current);

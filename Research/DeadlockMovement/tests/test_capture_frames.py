@@ -93,6 +93,19 @@ class FrameTests(unittest.TestCase):
         bad = {**frame(), 'friction': 'x'}
         self.assertFalse(self.report([frame_header(), bad, frame_end()])['valid'])
 
+    def test_optional_wall_and_ground_fields(self):
+        jump = {**ability(), 'class': 'CCitadel_Ability_Jump',
+                'fields': {'m_vCurrentWallNormal.x': 3.4028234663852886e38, 'm_eWallJumpFacing': 2}}
+        row = {**frame(), 'wall_sliding': False, 'ground_normal': [0, 0.47, 0.88],
+               'fall_velocity': 587.5, 'colliding': True, 'landed_on_ground': None,
+               'abilities': [jump]}
+        self.assertTrue(self.report([frame_header(), row, frame_end()])['valid'])
+        for name, value in (('wall_sliding', 1), ('ground_normal', [0, 1]),
+                            ('fall_velocity', 'x'), ('colliding', 'yes')):
+            bad = {**frame(), name: value}
+            with self.subTest(name=name, value=value):
+                self.assertFalse(self.report([frame_header(), bad, frame_end()])['valid'])
+
     def test_no_physical_availability_or_readiness_inference(self):
         row = frame()
         row.update(grounded=True, ground_entity=None, velocity=None,

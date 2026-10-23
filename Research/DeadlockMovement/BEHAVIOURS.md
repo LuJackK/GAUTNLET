@@ -48,9 +48,10 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-SLD-11 | Slide cancel and lockout | configured | none | not started |
 | B-STA-01 | Stamina pool and regen | configured (wiki) | 3 bars, 1/s after 1 s delay | implemented |
 | B-STA-02 | Stamina costs | decoded | dash 1, air dash 1, double jump 1 | implemented |
-| B-WAL-01 | Wall jump | configured | none | deferred |
-| B-WAL-02 | Wall slide | configured | none | deferred |
-| B-MNT-01 | Mantle | configured | none | deferred |
+| B-WAL-01 | Wall jump | decoded | none | not started |
+| B-WAL-02 | Wall slide | located | none | not started |
+| B-MNT-01 | Mantle | decoded | none | not started |
+| B-MNT-02 | Mantle slide | decoded (boost value unread) | none | not started |
 
 
 ## Capture checks, 2026-10-20
@@ -488,8 +489,87 @@ slide resets the coefficient to 1.
   reduces stamina regen by 25% for 5 s.
 - **GAUNTLET:** 3 bars, 1/s after a 1 s delay since the last spend; costs 1/1/1.
 
-## Deferred
+## Walls and mantle
 
-B-WAL-01 wall jump (out speeds 225–310, up 525, lateral 100, fatigue recovery),
-B-WAL-02 wall slide (terminal velocity 600), B-MNT-01 mantle (max height 134). Keep
-`MoveData` room for wall contact and charges.
+Decoded 2026-10-23 on build 26059233 (RVAs below). The schema on 26147187 has the same fields.
+Values come from the 25841406 vdata export and the 26147187 convars; the 26147187 vdata could not
+be exported (the pinned Source 2 Viewer rejects a new KV3 type). Not yet checked against a capture.
+
+| RVA | Role |
+| --- | --- |
+| `0x2a1790` | jump execute: picks the jump type (`0x25b970`), runs it, records `m_LastJumpType` |
+| `0x25b970` | jump type: dash-jump if dashing (pawn state bit 9); wall jump if a wall is detected and stamina allows; air jump if airborne; else ground |
+| `0x26c200` | wall jump possible: airborne and `m_vCurrentWallNormal` valid (not the FLT_MAX sentinel) |
+| `0x2aed00` | wall detection: collects nearby planes, weights them, keeps a short memory of the last wall |
+| `0x25d6a0` | wall jump: direction, out speed, up speed, lateral speed, fatigue, stamina |
+| `0x26afb0` | wall-jump power (fatigue) |
+| `0x2a6020` | jump think: landing resets, fatigue recovery during other moves |
+| `0x2a1b00` | mantle start: ledge search (`0x257d20`), start/target positions, mantle type, zero velocity |
+| `0x295070` | mantle movement callback: moves along the path, gravity off, exit handling and mantle-slide boost |
+
+### B-WAL-01 Wall jump
+- **Trigger:** a jump press while airborne with a valid wall normal. It is checked before the air jump,
+  so near a wall a jump press is a wall jump, not a double jump. A dash-jump (while dashing) still wins.
+- **Stamina:** the first `citadel_wall_jump_num_free_wall_jumps` (1) consecutive wall jumps cost
+  `citadel_initial_wall_jump_stamina_cost` (0); after that `citadel_wall_jump_stamina_cost` (0.5). A wall
+  jump needs current stamina strictly above its cost. `m_nConsecutiveWallJumps` counts them (reset on landing).
+- **Wall detection** (`0x2aed00`): planes within `m_flCollidedWallMaxDist` of the hull whose normal is at
+  most 45° from horizontal (|n.z| ≤ 0.707) count as walls. Each is weighted 1 at contact, falling to 0 at
+  the maximum distance. The weighted sum is flattened to horizontal and normalised. A trace of
+  `citadel_wall_detection_skin` (8 u) toward the wall confirms it; one surface type rejects it. With no
+  wall this tick, the last valid normal is kept while the player is within half the detection distance
+  of where it was seen (a short wall "coyote" time).
+- **Direction:** `dir = normalize(c × n̂ + (1 − c) × n̂_horizontal)`, with n̂ the wall normal and
+  `c = citadel_corner_boost_strength` 0.6. Velocity into the wall is removed first (`v −= dir × min(0, v·dir)`).
+- **Out speed:** `out = lerp(m_flWallJumpMinOutSpeed 225, MaxOutSpeed 310, clamp((facing·dir + 1) × 0.5, 0, 1))`,
+  so looking away from the wall gives up to 310 and looking into it gives 225. `v.xy += dir.xy × out`.
+- **Vertical:** `vz = out × dir.z + (vz < 100 ? 0.3 × vz : 0) + power × m_flWallJumpUpSpeed 525`. Falling
+  speed is kept at 30%; upward speed of 100 or more is dropped.
+- **Lateral:** along the wall's tangent `t = (−dir.y, dir.x, 0)`, target `= lerp(−100, 100, clamp((facing·t + 1) × 0.5, 0, 1))`
+  (`m_flWallJumpMaxLateralSpeed` 100). It is scaled by the curve `m_WallJumpLateralSpeedFalloffVsAlongSpeed`
+  (1 at 250 u/s along the wall, 0 at 550), evaluated at |v·t|, or at −|v·t| when the target opposes the
+  current along-wall motion. Then `v += t × target × falloff`.
+- **Fatigue:** `power = Bias(remap_clamped(now − m_flWallJumpFatigueStartTime, 0, m_flWallJumpFullPowerRechargeTime 1.25, m_flWallJumpPowerMin 0.2, 1), m_flWallJumpPowerBias 0.2)`.
+  Each wall jump restarts the fatigue clock: an immediate second wall jump has power ≈ 0.06 (up speed ≈ 31),
+  full power returns after 1.25 s. `citadel_wall_jump_fatigue_recovery` (1) scales recovery during heavy
+  melee or air dash.
+- **After:** lateral input is suppressed until `now + m_flWallJumpLateralInputSuppressTime` 0.95 s; the
+  current and last valid normals are cleared; `m_vWallJumpNormalUsed` and `m_flLastWallJumpFatigueStrength`
+  are stored.
+- **GAUNTLET:** none.
+
+### B-WAL-02 Wall slide
+- **Deadlock** (`0xb076c0`, B-AIR-03), located only: while pawn state bit 8 (likely
+  `MODIFIER_STATE_WALLSLIDE`) is set and falling, vz is eased toward `citadel_wall_slide_terminal_velocity` 600.
+  What sets the state is not read. `citadel_wall_ride_enabled` is false ("obsolete"), so wall running is
+  off in this build. The upgraded recorder logs the state; a capture should show whether it occurs at all.
+- **GAUNTLET:** none.
+
+### B-MNT-01 Mantle
+- **Ledge search:** `citadel_mantle_probe_depth` 32 u ahead, up to `citadel_mantle_max_height` 134 above.
+  Auto-mantle skips ledges whose drop just past the lip (`citadel_mantle_auto_step_check_inset` 4 u) is within
+  step height (`sv_stepsize` 18), so stairs are walked, not mantled. `citadel_mantle_horizontal_movement_distance`
+  16 u is how far onto the ledge it moves you. `m_flAutoMantlePushTime` 0.06 s of pushing into a ledge
+  and `m_flAutoMantleBlockedMaxSpeed` 60 gate the auto-mantle.
+- **Types** (by ledge height, `MantleType_t`): 32 (≤ 64 u), 64 (32–96 u, 0.3 s), 96 (64–128 u, 0.4 s up,
+  0.2 s across), 128 (96–160 u, 0.5 s). Unset times are class defaults (unread).
+- **Start** (`0x2a1b00`): stores start position, target = start + ledge offset, facing, type index and
+  start time; sets velocity to zero; tags "mantle".
+- **Movement** (`0x295070`): each tick for the type's vertical time (rounded to ticks), velocity is set to
+  the path step ÷ dt and the step goes into the CMoveData move vector (`+0xf4`, the same slot as the ground
+  dash). mv flag `+0x112` is set, so gravity is off. Pulling away cancels only if
+  `citadel_mantle_cancelling_allowed` (false).
+- **Exit:** with no forward input, velocity is zeroed unless the probe finds open space. Horizontal speed is
+  then capped at the hero's max move speed.
+- **GAUNTLET:** none.
+
+### B-MNT-02 Mantle slide
+- **Deadlock** (`0x295070`, exit): if crouch (button 4, or the slide button) is held, speed is forward and
+  mantling is not blocked, the mantle type's `m_flSlideExitBoostOnGround` is added along the horizontal
+  velocity, and the slide takes over. The boost values are class defaults, not in the vdata export, so
+  they must be measured.
+- **GAUNTLET:** none.
+
+### Dash-jump air control (B-AIR-02 addendum)
+The 1.3× air acceleration measured on 21 October matches `CAbilityJumpVData::m_flDashJumpExtraAirControlTime`
+and `…Percent` (class defaults, not in vdata): about +30% until about 0.6 s after the dash.

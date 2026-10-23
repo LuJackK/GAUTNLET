@@ -273,6 +273,35 @@ Added for the decoded behaviours in [BEHAVIOURS.md](../BEHAVIOURS.md) and the te
     `m_bJumped`, `m_bInSlideJump`.
   A field missing from the loaded schema is skipped, never guessed. Booleans are exported as 0/1.
 
+### Walls, slopes and mantle (23 October upgrade)
+
+For B-WAL and B-MNT in [BEHAVIOURS.md](../BEHAVIOURS.md). Also additive and optional.
+
+- **Frames:**
+  - `wall_sliding`: `MODIFIER_STATE_WALLSLIDE`, read the same way as the dash flags.
+  - `ground_normal`: `CPlayer_MovementServices_Humanoid::m_groundNormal`, the exact slope of the
+    surface underfoot. It is stale while airborne.
+  - `fall_velocity`: `m_flFallVelocity`.
+  - `colliding`, `landed_on_ground`: `CCitadelPlayer_MovementServices::m_bColliding` and
+    `m_bLandedOnGround`.
+
+  All are read through `m_pMovementServices`, schema-resolved, and null if unavailable.
+- **Frame ability fields:** two new field kinds. A vector is exported as three keys (`name.x`, `.y`,
+  `.z`), and an int16 as a number. The jump ability uses FLT_MAX (3.4e38) for "no wall", and the value is
+  kept as is.
+  - `CCitadel_Ability_Jump` adds:
+    - wall normals: `m_vCurrentWallNormal`, `m_vLastWallCollidedWithNormal`,
+      `m_vLastValidWallJumpNormal`, `m_vWallJumpNormalUsed`;
+    - facing: `m_vWallJumpFacingDir`, `m_eWallJumpFacing` (0 none, 1 front, 2 right, 3 left, 4 back);
+    - timing and fatigue: `m_flWallJumpFatigueStartTime`, `m_flLastWallJumpTime`,
+      `m_flLastWallJumpFatigueStrength`, `m_flDoubleJumpFailTime`, `m_flLateralInputSuppressEndTime`;
+    - the count `m_nConsecutiveWallJumps`.
+  - `CCitadel_Ability_Mantle`: `m_flVertOffset`, `m_flHorizGap`, `m_vStartPos`, `m_vTargetPos`,
+    `m_nMantleTypeIndex`, `m_flStartTime`, `m_flAutoMantlePushStartTime`, `m_flAutoMantleLastPushTime`.
+- **Not captured:** the individual collision planes touched each step. Wall contact comes from the jump
+  ability's wall normals, and floor slope from `ground_normal`. Ceilings and stair steps show only in
+  position and velocity.
+
 Frame values are after-frame observations. Do not attach them to earlier movement steps as if
 simultaneous (see above).
 

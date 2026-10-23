@@ -107,6 +107,29 @@ exact spot of each trial (position from the trace) so its collision mesh can be 
 | C06 | P1 | ledge edge | Walk and slide off a ledge edge slowly and fast | Edge snap and when ground is lost |
 | C07 | P2 | tech reference | 2–3 tricks the user knows work (e.g. corner boost, wall bounce, slide-hop chain), 3–5 reps each | Reference traces for acceptance testing in GAUNTLET |
 
+## Walls and mantle block (added 2026-10-23)
+
+Needs the 23 October recorder: wall normals, mantle fields, `ground_normal`, `wall_sliding`. The model
+for each row is in BEHAVIOURS.md (B-WAL-01, B-WAL-02, B-MNT-01, B-MNT-02). These are the features the user
+wants before GAUNTLET integration continues. Note each spot so its collision mesh can be checked. Mina, no
+items, as before. 3–5 reps per row unless stated.
+
+| ID | Pri | Behaviour | What to do | Settles |
+| --- | --- | --- | --- | --- |
+| W01 | P0 | wall jump, facing | Jump at a flat wall and wall-jump while looking away from it, along it, then into it | Out speed 225–310 versus facing; direction blend (corner boost 0.6) |
+| W02 | P0 | wall jump, fatigue and stamina | Wall-jump between two walls (or back to the same wall) as fast as possible, 4+ in a row; then once more after waiting ~1.5 s in the air or on a fresh jump | Fatigue power curve (≈0.06 right after, full after 1.25 s); first free, then 0.5 stamina; needs stamina above cost |
+| W03 | P0 | wall jump versus double jump | Near a wall, press jump once in the air (expect a wall jump); away from walls, the same press (expect an air jump) | Priority of wall jump over air jump; detection distance |
+| W04 | P1 | wall jump with sideways input | Wall-jump while holding A or D along the wall, at low and at high speed along the wall | Lateral speed ±100 and its falloff with speed along the wall (1 at 250, 0 at 550); input suppression for 0.95 s |
+| W05 | P1 | wall jump when falling or rising | Wall-jump early in a jump (rising) and late (falling fast) | Vertical rule: rising speed ≥100 dropped, falling speed kept at 30% |
+| W06 | P1 | wall slide | Fall along a wall while holding into it | Whether `wall_sliding` ever turns on in this build; vz cap 600 |
+| W07 | P2 | corner or angled wall | Wall-jump off an outside corner and a wall that leans in or out | Weighted normal from several planes; leaning-wall direction |
+| M01 | P0 | mantle heights | Mantle onto ledges of four heights: knee (~40 u), waist (~80 u), chest (~110 u), head (~140 u); also one just too high | Mantle type by height (32/64/96/128), duration, the 134 u limit |
+| M02 | P0 | mantle from a run and from a jump | Mantle the same ledge from walking, from a sprint/dash and from mid-air | Entry conditions; speed on exit, capped at the hero's max |
+| M03 | P0 | mantle slide | Mantle while holding crouch and forward; then the same without crouch | The slide-exit boost per mantle type (value not in vdata) |
+| M04 | P1 | mantle exit, no input | Mantle and release all keys during it | Velocity zeroed on exit with no forward input |
+| M05 | P1 | stairs versus mantle | Walk into a staircase and into a single block of step height (~18 u) and slightly more (~24 u) | Auto-mantle skips stairs; step-up height 18 |
+| M06 | P2 | mantle then jump | Jump right as the mantle ends | Whether a jump is allowed or refunded (`m_flMantleRefundWindow` 0.1) |
+
 ## Unity tests after porting (kind *unity*)
 
 These lock each confirmed rule into the GAUNTLET test suite at the Deadlock tick (64 Hz) and at the

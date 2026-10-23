@@ -56,7 +56,7 @@ index c96570c..532a0a1 100644
    explicit MovementHook(std::unique_ptr<Impl> impl);
    std::unique_ptr<Impl> impl_;
 diff --git a/include/modlock/gameinterop/pawn_observer.h b/include/modlock/gameinterop/pawn_observer.h
-index 767ae7d..8f3e56b 100644
+index 767ae7d..2f3751f 100644
 --- a/include/modlock/gameinterop/pawn_observer.h
 +++ b/include/modlock/gameinterop/pawn_observer.h
 @@ -163,6 +163,14 @@ struct AbilityLayout {
@@ -68,7 +68,7 @@ index 767ae7d..8f3e56b 100644
 +    std::string class_name;  // e.g. CCitadel_Ability_Slide
 +    std::string field;       // schema field name, exported as the JSON key
 +    size_t offset = 0;
-+    uint8_t kind = 0;        // 0 float32, 1 int32, 2 int8, 3 bool, 4 uint32
++    uint8_t kind = 0;        // 0 float32, 1 int32, 2 int8, 3 bool, 4 uint32, 5 float32[3] (.x/.y/.z), 6 int16
 +  };
 +  std::vector<ClassField> class_fields;
    size_t upgrade_info = 0;
@@ -191,7 +191,7 @@ index b86b6ac..ff26cbd 100644
  #endif
  }
 diff --git a/src/gameinterop/pawn_observer.cc b/src/gameinterop/pawn_observer.cc
-index 830275b..a0a26c6 100644
+index 830275b..c9d685f 100644
 --- a/src/gameinterop/pawn_observer.cc
 +++ b/src/gameinterop/pawn_observer.cc
 @@ -9,6 +9,7 @@
@@ -202,7 +202,7 @@ index 830275b..a0a26c6 100644
  
  #if defined(_WIN32)
  #include <windows.h>
-@@ -376,9 +377,72 @@ std::expected<AbilityLayout, std::string> ResolveAbilityLayout() {
+@@ -376,9 +377,92 @@ std::expected<AbilityLayout, std::string> ResolveAbilityLayout() {
        SchemaFieldOf(*schema, "server.dll", "CCitadel_Ability_Mantle", "m_flStartTime");
    if (mantle_start && mantle_start->size >= sizeof(float))
      layout.mantle_start_time = mantle_start->offset;
@@ -240,6 +240,26 @@ index 830275b..a0a26c6 100644
 +      {"CCitadel_Ability_Jump", "m_bCanDashJump", 3, 1},
 +      {"CCitadel_Ability_Jump", "m_bJumped", 3, 1},
 +      {"CCitadel_Ability_Jump", "m_bInSlideJump", 3, 1},
++      {"CCitadel_Ability_Jump", "m_flWallJumpFatigueStartTime", 0, 4},
++      {"CCitadel_Ability_Jump", "m_vCurrentWallNormal", 5, 12},
++      {"CCitadel_Ability_Jump", "m_vLastWallCollidedWithNormal", 5, 12},
++      {"CCitadel_Ability_Jump", "m_vLastValidWallJumpNormal", 5, 12},
++      {"CCitadel_Ability_Jump", "m_flLastWallJumpTime", 0, 4},
++      {"CCitadel_Ability_Jump", "m_vWallJumpFacingDir", 5, 12},
++      {"CCitadel_Ability_Jump", "m_eWallJumpFacing", 6, 2},
++      {"CCitadel_Ability_Jump", "m_flLastWallJumpFatigueStrength", 0, 4},
++      {"CCitadel_Ability_Jump", "m_flDoubleJumpFailTime", 0, 4},
++      {"CCitadel_Ability_Jump", "m_vWallJumpNormalUsed", 5, 12},
++      {"CCitadel_Ability_Jump", "m_nConsecutiveWallJumps", 2, 1},
++      {"CCitadel_Ability_Jump", "m_flLateralInputSuppressEndTime", 0, 4},
++      {"CCitadel_Ability_Mantle", "m_flVertOffset", 0, 4},
++      {"CCitadel_Ability_Mantle", "m_flHorizGap", 0, 4},
++      {"CCitadel_Ability_Mantle", "m_vStartPos", 5, 12},
++      {"CCitadel_Ability_Mantle", "m_vTargetPos", 5, 12},
++      {"CCitadel_Ability_Mantle", "m_nMantleTypeIndex", 1, 4},
++      {"CCitadel_Ability_Mantle", "m_flStartTime", 0, 4},
++      {"CCitadel_Ability_Mantle", "m_flAutoMantlePushStartTime", 0, 4},
++      {"CCitadel_Ability_Mantle", "m_flAutoMantleLastPushTime", 0, 4},
 +  };
 +  for (const auto& wanted : kClassFields) {
 +    const auto field = SchemaFieldOf(*schema, "server.dll", wanted.type, wanted.name);
@@ -275,7 +295,7 @@ index 830275b..a0a26c6 100644
  // ResolveStaminaLayout resolves the pawn's inline stamina resource floats
  // through the game's schema system. AbilityResource_t is the value type of
  // CCitadelAbilityComponent::m_ResourceStamina; its offsets are relative to the
-@@ -1309,6 +1373,25 @@ PawnObserver::CurrentAbilitiesForSlot(int32_t slot) {
+@@ -1309,6 +1393,37 @@ PawnObserver::CurrentAbilitiesForSlot(int32_t slot) {
        if (std::isfinite(start)) ability.mantle_start_time = start;
      }
      if (ability.slot == 0xD && layout.sliding) ability.sliding = entity[*layout.sliding] == 1;
@@ -292,6 +312,18 @@ index 830275b..a0a26c6 100644
 +            case 2: { int8_t v = 0; std::memcpy(&v, entity + field.offset, sizeof(v)); value = v; break; }
 +            case 3: value = entity[field.offset] == 1 ? 1 : 0; break;
 +            case 4: { uint32_t v = 0; std::memcpy(&v, entity + field.offset, sizeof(v)); value = v; break; }
++            case 5: {
++              // A vector exports as three keys. The jump ability marks "no wall"
++              // with FLT_MAX, which is finite and kept, so unset differs from zero.
++              float v[3] = {};
++              std::memcpy(v, entity + field.offset, sizeof(v));
++              if (!std::isfinite(v[0]) || !std::isfinite(v[1]) || !std::isfinite(v[2])) continue;
++              ability.fields.emplace_back(field.field + ".x", v[0]);
++              ability.fields.emplace_back(field.field + ".y", v[1]);
++              ability.fields.emplace_back(field.field + ".z", v[2]);
++              continue;
++            }
++            case 6: { int16_t v = 0; std::memcpy(&v, entity + field.offset, sizeof(v)); value = v; break; }
 +            default: continue;
 +          }
 +          ability.fields.emplace_back(field.field, value);

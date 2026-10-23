@@ -68,6 +68,14 @@ def _row(record):
     for field in ('friction', 'surface_friction'):
         if record.get(field) is not None:
             _number(record[field], field)
+    # Optional since the 23 October recorder: walls, slopes and landings.
+    if record.get('fall_velocity') is not None:
+        _number(record['fall_velocity'], 'fall_velocity')
+    if record.get('ground_normal') is not None:
+        _vector(record['ground_normal'], 'ground_normal', 3)
+    for flag in ('wall_sliding', 'colliding', 'landed_on_ground'):
+        if record.get(flag) is not None and type(record[flag]) is not bool:
+            raise CaptureError(f'{flag} must be a boolean or null')
     stamina = record['stamina']
     if stamina is not None:
         _required(stamina, ('current', 'max'), 'stamina')
