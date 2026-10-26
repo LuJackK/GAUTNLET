@@ -67,6 +67,30 @@ namespace Fragsurf.Movement {
         // whether that dash started airborne (air dashes accelerate; ground dashes hold speed).
         public Vector3 dashDirection = Vector3.zero;
         public bool airDashing = false;
+        // Deadlock dash-jump: still available in the current ground dash, and remaining extra air control.
+        public bool canDashJump = false;
+        public float dashJumpAirControlTimer = 0f;
+
+        // Deadlock wall jump: last detected wall normal (zero when none) and where it was seen,
+        // time since the fatigue clock restarted, and wall jumps since landing.
+        public Vector3 wallNormal = Vector3.zero;
+        public Vector3 wallSeenOrigin = Vector3.zero;
+        public float wallJumpFatigueTime = 10f;
+        public int consecutiveWallJumps = 0;
+
+        // Deadlock mantle: the active path (start, horizontal direction and distance, the mantle
+        // type's height and vertical time, ledge height minus type height), elapsed time, time spent
+        // pushing into a ledge, and a jump pressed near the end of the mantle.
+        public bool mantling = false;
+        public float mantleTime = 0f;
+        public float mantlePushTimer = 0f;
+        public Vector3 mantleStart = Vector3.zero;
+        public Vector3 mantleDirection = Vector3.zero;
+        public float mantleDistance = 0f;
+        public float mantleHeight = 0f;
+        public float mantleOffset = 0f;
+        public float mantleVerticalTime = 0f;
+        public bool mantleJumpBuffered = false;
 
         // Sliding
         public bool slideRequested = false;

@@ -62,6 +62,22 @@ namespace Fragsurf.Movement {
         public int slideDelay;
         public int dashSlideTimer;
         public int slideGraceTimer;
+        public bool canDashJump;
+        public int dashJumpAirControlTimer;
+        public TraceVector wallNormal;
+        public TraceVector wallSeenOrigin;
+        public int wallJumpFatigueTime;
+        public int consecutiveWallJumps;
+        public bool mantling;
+        public int mantleTime;
+        public int mantlePushTimer;
+        public TraceVector mantleStart;
+        public TraceVector mantleDirection;
+        public int mantleDistance;
+        public int mantleHeight;
+        public int mantleOffset;
+        public int mantleVerticalTime;
+        public bool mantleJumpBuffered;
         public int slopeLimit;
         public int rigidbodyPushForce;
         public int defaultHeight;
@@ -154,6 +170,22 @@ namespace Fragsurf.Movement {
             slideDelay = Bits(s.slideDelay),
             dashSlideTimer = Bits(s.dashSlideTimer),
             slideGraceTimer = Bits(s.slideGraceTimer),
+            canDashJump = s.canDashJump,
+            dashJumpAirControlTimer = Bits(s.dashJumpAirControlTimer),
+            wallNormal = TraceVector.Copy(s.wallNormal),
+            wallSeenOrigin = TraceVector.Copy(s.wallSeenOrigin),
+            wallJumpFatigueTime = Bits(s.wallJumpFatigueTime),
+            consecutiveWallJumps = s.consecutiveWallJumps,
+            mantling = s.mantling,
+            mantleTime = Bits(s.mantleTime),
+            mantlePushTimer = Bits(s.mantlePushTimer),
+            mantleStart = TraceVector.Copy(s.mantleStart),
+            mantleDirection = TraceVector.Copy(s.mantleDirection),
+            mantleDistance = Bits(s.mantleDistance),
+            mantleHeight = Bits(s.mantleHeight),
+            mantleOffset = Bits(s.mantleOffset),
+            mantleVerticalTime = Bits(s.mantleVerticalTime),
+            mantleJumpBuffered = s.mantleJumpBuffered,
             slopeLimit = Bits(s.slopeLimit),
             rigidbodyPushForce = Bits(s.rigidbodyPushForce),
             defaultHeight = Bits(s.defaultHeight),

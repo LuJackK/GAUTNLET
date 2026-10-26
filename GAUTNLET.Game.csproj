@@ -75,6 +75,7 @@
     <Compile Include="Assets\Scripts\Gameplay\Combat\Hitbox.cs" />
     <Compile Include="Assets\Scripts\Multiplayer\World\WorldMovementSerializer.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\RotateWithCamera.cs" />
+    <Compile Include="Assets\Scripts\Gameplay\Player\Movement\SurfController.DeadlockWalls.cs" />
     <Compile Include="Assets\Scripts\AssemblyInfo.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Pickups\PickupWorldItem.cs" />
     <Compile Include="Assets\Scripts\Gameplay\Player\Presentation\PlayerVFXController.cs" />

@@ -38,6 +38,27 @@ namespace Fragsurf.Movement {
             }
         }
 
+        // True when the collider at origin, grown by margin on every side, overlaps world geometry.
+        public static bool Blocked(Collider collider, Vector3 origin, float margin) {
+            Vector3 scale = Scale(collider);
+            Collider[] hits = Overlaps;
+            int count;
+            if (collider is CapsuleCollider capsule) {
+                GetCapsulePoints(capsule, origin, out Vector3 a, out Vector3 b);
+                float radius = capsule.radius * Mathf.Max(scale.x, scale.z) + margin;
+                count = Physics.OverlapCapsuleNonAlloc(a, b, radius, hits, groundLayerMask, QueryTriggerInteraction.Ignore);
+            } else if (collider is BoxCollider box) {
+                Vector3 center = origin + Vector3.Scale(box.center, scale);
+                Vector3 extents = Vector3.Scale(box.size * 0.5f, scale) + Vector3.one * margin;
+                count = Physics.OverlapBoxNonAlloc(center, extents, hits, Quaternion.identity, groundLayerMask, QueryTriggerInteraction.Ignore);
+            } else {
+                throw new System.NotSupportedException("Motor requires a box or vertical capsule.");
+            }
+            for (int i = 0; i < count; i++)
+                if (hits[i] != null && hits[i] != collider) return true;
+            return false;
+        }
+
         private static int CompareNormal(Vector3 a, Vector3 b) {
             int x = a.x.CompareTo(b.x);
             if (x != 0) return x;

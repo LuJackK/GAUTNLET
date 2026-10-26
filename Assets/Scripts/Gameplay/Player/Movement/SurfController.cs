@@ -24,6 +24,7 @@ namespace Fragsurf.Movement {
                 ProcessDeadlockMovement(surfer, config, dt);
                 return;
             }
+            s.mantling = s.mantleJumpBuffered = false;
             s.underwater = s.cameraUnderwater = s.climbingLadder = false;
             s.dashTimer = Mathf.Max(0f, s.dashTimer - dt);
             s.dashCooldownTimer = Mathf.Max(0f, s.dashCooldownTimer - dt);

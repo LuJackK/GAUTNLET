@@ -155,6 +155,22 @@ namespace Fragsurf.Movement {
                 SlideDelay = (state != null) ? state.slideDelay : 0f,
                 DashSlideTimer = (state != null) ? state.dashSlideTimer : 0f,
                 SlideGraceTimer = (state != null) ? state.slideGraceTimer : 0f,
+                CanDashJump = BoolToByte(state != null && state.canDashJump),
+                DashJumpAirControlTimer = (state != null) ? state.dashJumpAirControlTimer : 0f,
+                WallNormal = (state != null) ? state.wallNormal : Vector3.zero,
+                WallSeenOrigin = (state != null) ? state.wallSeenOrigin : Vector3.zero,
+                WallJumpFatigueTime = (state != null) ? state.wallJumpFatigueTime : 0f,
+                ConsecutiveWallJumps = (state != null) ? state.consecutiveWallJumps : 0,
+                Mantling = BoolToByte(state != null && state.mantling),
+                MantleTime = (state != null) ? state.mantleTime : 0f,
+                MantlePushTimer = (state != null) ? state.mantlePushTimer : 0f,
+                MantleStart = (state != null) ? state.mantleStart : Vector3.zero,
+                MantleDirection = (state != null) ? state.mantleDirection : Vector3.zero,
+                MantleDistance = (state != null) ? state.mantleDistance : 0f,
+                MantleHeight = (state != null) ? state.mantleHeight : 0f,
+                MantleOffset = (state != null) ? state.mantleOffset : 0f,
+                MantleVerticalTime = (state != null) ? state.mantleVerticalTime : 0f,
+                MantleJumpBuffered = BoolToByte(state != null && state.mantleJumpBuffered),
                 DashStartedThisFrame = BoolToByte(state != null && state.dashStartedThisFrame),
                 DoubleJumpedThisFrame = BoolToByte(state != null && state.doubleJumpedThisFrame),
                 MeleeHitThisFrame = BoolToByte(state != null && state.meleeHitThisFrame),
@@ -342,6 +358,22 @@ namespace Fragsurf.Movement {
             state.slideDelay = reconcileData.SlideDelay;
             state.dashSlideTimer = reconcileData.DashSlideTimer;
             state.slideGraceTimer = reconcileData.SlideGraceTimer;
+            state.canDashJump = ByteToBool(reconcileData.CanDashJump);
+            state.dashJumpAirControlTimer = reconcileData.DashJumpAirControlTimer;
+            state.wallNormal = reconcileData.WallNormal;
+            state.wallSeenOrigin = reconcileData.WallSeenOrigin;
+            state.wallJumpFatigueTime = reconcileData.WallJumpFatigueTime;
+            state.consecutiveWallJumps = reconcileData.ConsecutiveWallJumps;
+            state.mantling = ByteToBool(reconcileData.Mantling);
+            state.mantleTime = reconcileData.MantleTime;
+            state.mantlePushTimer = reconcileData.MantlePushTimer;
+            state.mantleStart = reconcileData.MantleStart;
+            state.mantleDirection = reconcileData.MantleDirection;
+            state.mantleDistance = reconcileData.MantleDistance;
+            state.mantleHeight = reconcileData.MantleHeight;
+            state.mantleOffset = reconcileData.MantleOffset;
+            state.mantleVerticalTime = reconcileData.MantleVerticalTime;
+            state.mantleJumpBuffered = ByteToBool(reconcileData.MantleJumpBuffered);
             state.dashStartedThisFrame = ByteToBool(reconcileData.DashStartedThisFrame);
             state.doubleJumpedThisFrame = ByteToBool(reconcileData.DoubleJumpedThisFrame);
             state.meleeHitThisFrame = ByteToBool(reconcileData.MeleeHitThisFrame);
@@ -604,6 +636,10 @@ namespace Fragsurf.Movement {
                 state.slideDelay = Mathf.Lerp(from.slideDelay, to.slideDelay, t);
                 state.dashSlideTimer = Mathf.Lerp(from.dashSlideTimer, to.dashSlideTimer, t);
                 state.slideGraceTimer = Mathf.Lerp(from.slideGraceTimer, to.slideGraceTimer, t);
+                state.dashJumpAirControlTimer = Mathf.Lerp(from.dashJumpAirControlTimer, to.dashJumpAirControlTimer, t);
+                state.wallJumpFatigueTime = Mathf.Lerp(from.wallJumpFatigueTime, to.wallJumpFatigueTime, t);
+                state.mantleTime = Mathf.Lerp(from.mantleTime, to.mantleTime, t);
+                state.mantlePushTimer = Mathf.Lerp(from.mantlePushTimer, to.mantlePushTimer, t);
                 state.meleeTimer = Mathf.Lerp(from.meleeTimer, to.meleeTimer, t);
                 state.meleeCooldownTimer = Mathf.Lerp(from.meleeCooldownTimer, to.meleeCooldownTimer, t);
                 state.meleeHoldTimer = Mathf.Lerp(from.meleeHoldTimer, to.meleeHoldTimer, t);

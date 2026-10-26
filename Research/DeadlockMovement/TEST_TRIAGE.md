@@ -130,6 +130,39 @@ items, as before. 3–5 reps per row unless stated.
 | M05 | P1 | stairs versus mantle | Walk into a staircase and into a single block of step height (~18 u) and slightly more (~24 u) | Auto-mantle skips stairs; step-up height 18 |
 | M06 | P2 | mantle then jump | Jump right as the mantle ends | Whether a jump is allowed or refunded (`m_flMantleRefundWindow` 0.1) |
 
+**Results (runs `human-tests-20261026-01` and `-02`, build 26224525; details in BEHAVIOURS.md, "Live session
+2026-10-26").** W01–W03 and M01–M03 (P0) and W04–W06, M04–M06 (P1) were recorded; W07 was replaced by the
+user's corner "edge boost" (C07). Settled: wall-jump out speed, vertical, lateral (low speed), fatigue and
+stamina, wall jump before air jump; wall slide has no effect; mantle types, path and timing, the
+mantle-slide boost (+400), exit with and without forward, the jump window at the end. All of it is in
+GAUNTLET's Deadlock model with Unity tests.
+
+Still open from this block (none blocks the integration):
+
+| ID | Pri | Behaviour | What to do | Settles |
+| --- | --- | --- | --- | --- |
+| W03b | P1 | wall detection distance | Jump parallel to a wall at a measured distance (stand 10, 20, 30, 40 u from it) and press jump at low and at high speed | Whether the 10–30 u by speed remap is the detection distance |
+| W04b | P2 | lateral falloff | Wall-jump with A or D held while already moving 300–550 u/s along the wall | Falloff curve shape above 250 u/s |
+| W07 | P2 | corner and leaning walls | One clear instruction per rep: an outside corner, then a leaning wall | Normal weighting at corners; leaning walls (`citadel_corner_boost_strength`) |
+| C07b | P2 | edge boost confirmation | Tell which of the 19 C07 wall jumps felt best (by tick or order) | Whether the 561 u/s rep (tick 96605) is the "best" one |
+| M02b | P1 | mantle entries | Walk into a 64 u ledge at walk speed, then dash into it, without jumping | Ground entry conditions; exit speed after a fast entry |
+| M04b | P2 | type-128 exit with keys released | Release the keys on a 128 u ledge with open space behind and with a wall behind | When the 166 u/s exit applies instead of 0 |
+| M06b | P2 | mantle jump window | Press jump 9–16 ticks before the mantle ends | Exact buffer length (now 8 ticks) |
+| M05b | P1 | stairs | A real staircase and an 18–24 u block | Step-up versus mantle |
+
+## Jump, dash and slide follow-ups (added 2026-10-27)
+
+What is not yet confirmed for the user's feature list. GAUNTLET implements the decoded rule where marked.
+
+| ID | Pri | Behaviour | What to do | Settles | GAUNTLET now |
+| --- | --- | --- | --- | --- | --- |
+| J01 | P1 | B-DSH-04 window end and miss | Ground dash, jump at 0.45, 0.5, 0.55, 0.6 s; then jump at 0.15 s and once more at 0.35 s in the same dash | Window end 0.5 or 0.55; miss cap 250; lockout | decoded rule (0.55, cap 250, lockout) |
+| J02 | P1 | B-SLD-05 slide steering | Dash-slide straight, then hold A (no mouse) for 1 s; same on a ramp | 90°/s turn; slope weakening | decoded rule |
+| J03 | P1 | B-SLD-09 slide-jump | Slide, jump, land into a slide, jump again (3 in a row) | Air drag 2.0 easing over 0.5 s from the second jump of a slide session; how sessions reset | not implemented |
+| J04 | P2 | B-SLD-07 / B-SLD-10 landing and drop-slide | Hold crouch while falling onto a ramp from 2–4 m; then onto flat ground | Landing boost (none seen so far) and drop-slide start | not implemented |
+| J05 | P2 | B-DSH-03 down dash | In the air, double-tap crouch | Downward speed (not in vdata), cost 0.5 | not implemented |
+| J06 | P2 | B-SLD-04 slope term | Slide down the 19.3° ramp again with W held and without | Why it is 1 u/s per tick below the formula | implemented, 27.8–30.7° confirmed |
+
 ## Unity tests after porting (kind *unity*)
 
 These lock each confirmed rule into the GAUNTLET test suite at the Deadlock tick (64 Hz) and at the
@@ -144,9 +177,11 @@ production tick rate, in metres (×0.0254):
 | U05 | B-SLD-03 | Flat-slide friction regimes and the 170 u/s sustain stop |
 | U06 | B-JMP-01 | Ground jump sets vz 300 and keeps horizontal velocity; 287.5 after one tick at 64 Hz |
 | U07 | B-JMP-03 | Late jump within 0.15 s only while falling; free |
-| U08 | B-DSH-04 | Dash-jump window and costs (values from T07) |
+| U08 | B-DSH-04 | Dash-jump window and costs (values from T07); done 2026-10-27 with the wall-jump and mantle tests (U11, U12) |
 | U09 | B-STA-02 | Stamina costs: dash 1, dash-jump +1, air jump 1, down-dash 0.5 |
 | U10 | all new state | Every new timer and flag survives `MoveData` rollback and serialization |
+| U11 | B-WAL-01 | Out speed by input (225 / 267.5 / 310), +100 lateral, vertical keep, fatigue powers, stamina |
+| U12 | B-MNT-01, B-MNT-02 | Type by height, 19 + 13 ticks for 64 u, 46 ticks for 128 u from a jump, exit 191 / 0, slide +400, jump buffer |
 
 ## Suggested order
 

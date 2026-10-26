@@ -126,9 +126,9 @@ Included, each confirmed against Deadlock captures unless marked:
 - Decoded but not yet capture-tested: air strafing (Source air acceleration with a wish-speed cap of
   2.03 m/s, easing to 1.27 m/s above 15–20 m/s carried speed) and slide slope acceleration/friction.
 
-Not included yet: dash-jump (deprioritised), down dash, sprint, landing and sprint slide boosts,
-slide steering, slide jump air drag, wall jump, wall slide and mantle. Heavy melee and parry use the
-legacy rules in both models. A ground dash carried off a ledge keeps its speed with gravity on
+Not included yet: down dash, sprint, landing and sprint slide boosts and slide-jump air drag (see
+`TEST_TRIAGE.md`, "Jump, dash and slide follow-ups"). Wall slide was checked and has no effect in Deadlock.
+Heavy melee and parry use the legacy rules in both models. A ground dash carried off a ledge keeps its speed with gravity on
 (not capture-tested). Legacy fields such as `walkSpeed`, `friction`, `jumpForce`, `dashImpulse`,
 `slideDrag` and `airControlAcceleration` are ignored in the Deadlock model.
 
@@ -148,3 +148,33 @@ strafing, slide slopes, slide grace) still need playtesting and capture checks.
 Found while testing: the ground sweep does not detect a 400 m floor box (the character oscillates a
 few millimetres above it) in both models, while a 200 m box works. Large single floor colliders in
 levels may break grounding; worth checking on the real maps.
+
+## Deadlock walls, mantle and dash-jump (October 27, 2026)
+
+Added to the Deadlock model from the 2026-10-26 captures (BEHAVIOURS.md B-WAL-01, B-MNT-01, B-MNT-02,
+B-DSH-04, B-SLD-05). Rules in `SurfController.DeadlockWalls.cs` and `SurfController.Deadlock.cs`; values
+under Deadlock > Dash-jump, Wall jump and Mantle.
+
+- Wall jump: a jump press in the air near a wall (10–30 u by speed, remembered briefly) pushes off at
+  5.72–7.87 m/s by input (into the wall, none, away), adds up to 2.54 m/s along the wall by side input,
+  sets vertical speed to 13.3 m/s times fatigue power (1.25 s recovery) and keeps 30% of a fall. The first
+  wall jump per airtime is free, then 0.5 stamina. The air jump stays available.
+- Mantle: pushing into a ledge 0.46–3.40 m above the feet (4.06 m in the air) for 0.06 s climbs it on a
+  fixed path: 0.2–0.5 s up by ledge type, 0.2 s across, gravity off. Forward held keeps 4.5 m/s on exit,
+  no input stops; crouch + forward adds 10.16 m/s and slides. A jump pressed up to 0.125 s before the end
+  fires as the mantle ends.
+- Dash-jump: a jump 0.3–0.55 s into a ground dash sets 17.9 m/s along the dash and 10.8 m/s up for 1
+  stamina, with 1.3x air acceleration until 0.6 s after the dash. Outside the window a ground jump keeps at most
+  6.35 m/s (decoded).
+- Slide steering: turns toward input at 90 deg/s, weaker on slopes (decoded).
+
+New rollback state: `canDashJump`, `dashJumpAirControlTimer`, `wallNormal`, `wallSeenOrigin`,
+`wallJumpFatigueTime`, `consecutiveWallJumps`, `mantling`, `mantleTime`, `mantlePushTimer`, `mantleStart`,
+`mantleDirection`, `mantleDistance`, `mantleHeight`, `mantleOffset`, `mantleVerticalTime`,
+`mantleJumpBuffered`. Reconciled, traced and serialized (world movement wire version 4); `mantling` is a
+force-correct field.
+
+Validated October 27, 2026 with Unity 6000.3.2f1 in batch mode on the project: **126 PlayMode tests
+passed, 0 failed** (107 existing plus 19 new). Results: `TestResults/deadlock-walls-03.xml` (local).
+Wall detection casts the hull up to 9 times per airborne tick near geometry; mantle checks cast once per tick with forward
+input. Feel, real level geometry (corners, thin ledges, mesh colliders) and latency still need playtesting.

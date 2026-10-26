@@ -34,12 +34,12 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-DSH-01 | Ground dash | confirmed | velocity set to max(speed, 20 m/s) | implemented |
 | B-DSH-02 | Air dash | confirmed | velocity set to max(speed, 25 m/s), once per air time | implemented |
 | B-DSH-03 | Down dash | decoded (partial) | none | not started |
-| B-DSH-04 | Dash-jump | confirmed | jump cancels dash | not started |
+| B-DSH-04 | Dash-jump | confirmed (miss cap decoded) | jump cancels dash | implemented |
 | B-SLD-01 | Slide activation | decoded | speed ≥ 9 m/s or on slope, after delay | implemented |
 | B-SLD-02 | Slide sustain and exit | confirmed | ends when crouch released | implemented |
 | B-SLD-03 | Slide friction and grace | confirmed | linear drag 3 m/s² | implemented |
-| B-SLD-04 | Slope sliding | decoded | gravity projected down the slope | implemented |
-| B-SLD-05 | Slide steering | decoded | heading steer | not started |
+| B-SLD-04 | Slope sliding | confirmed (27.8–30.7°) | gravity projected down the slope | implemented |
+| B-SLD-05 | Slide steering | decoded | heading steer | implemented |
 | B-SLD-06 | Sprint-slide boost | decoded (suspect) | none ("never multiplies speed") | not started |
 | B-SLD-07 | Landing slide boost | decoded | none | not started |
 | B-SLD-08 | Dash-slide | confirmed | none | implemented |
@@ -47,11 +47,11 @@ agrees) · `located` (code found, not read) · `configured` (only vdata/convar v
 | B-SLD-10 | Drop-slide (crouch while falling) | decoded | none | not started |
 | B-SLD-11 | Slide cancel and lockout | configured | none | not started |
 | B-STA-01 | Stamina pool and regen | configured (wiki) | 3 bars, 1/s after 1 s delay | implemented |
-| B-STA-02 | Stamina costs | decoded | dash 1, air dash 1, double jump 1 | implemented |
-| B-WAL-01 | Wall jump | decoded | none | not started |
-| B-WAL-02 | Wall slide | located | none | not started |
-| B-MNT-01 | Mantle | decoded | none | not started |
-| B-MNT-02 | Mantle slide | decoded (boost value unread) | none | not started |
+| B-STA-02 | Stamina costs | confirmed | dash 1, air dash 1, double jump 1 | implemented (dash-jump 1, wall jumps 0 then 0.5) |
+| B-WAL-01 | Wall jump | confirmed | none | implemented |
+| B-WAL-02 | Wall slide | observed (no effect) | none | not needed |
+| B-MNT-01 | Mantle | confirmed (path measured) | none | implemented |
+| B-MNT-02 | Mantle slide | confirmed (+400) | none | implemented |
 
 
 ## Capture checks, 2026-10-20
@@ -105,6 +105,31 @@ Stamina regen here was about 0.24 per second (0.0037 per tick).
 Open from the live session: some air-dash presses did not execute despite stamina and a movement key
 (run -04 ticks 40352, 40385, 49848; ground 61383). `m_flSpeedAdjust` is never visible in after-frame state
 (set and consumed within one tick).
+
+Live session 2026-10-26: `human-tests-20261026-01` and `-02` (**build 26224525**; Mina, no items,
+dl_midtown; the rapid-regen cheat did not take effect, regen 0.24/s). The gate reproduced the dash and
+dash-slide tick for tick in both runs. Checks are per wall jump or mantle against the step trace (the
+step's incoming velocity already contains the wall jump or mantle change, like the dash-slide) and the
+new frame fields. Scratch scripts: `wj5.py`, `fat.py`, `mt.py` in the session scratchpad.
+
+| Behaviour | Prediction | Measured |
+| --- | --- | --- |
+| B-WAL-01 out speed | `lerp(225, 310, (facing·n + 1) / 2)` with facing the camera | **facing is the movement input, not the camera**: no input gives 267.5 whatever the view (W01, 12 reps). The input vector is **not normalised** (forward + side, Deadlock side +1 = left): a diagonal has length √2, so it can saturate both the out-speed and lateral lerps at once. With that, 82 of 104 wall jumps fit to < 0.5 u/s; most others fit within a 0.1–4° view-yaw change inside the tick (sub-tick input); 4 remain (8–25 u/s, all with turning) |
+| B-WAL-01 vertical | `(vz < 100 ? 0.3 vz : 0) + power × 525` | exact (< 0.01 u/s) in all 104 |
+| B-WAL-01 lateral | `+t × lerp(−100, 100, (facing·t + 1)/2) × falloff` | exact with single-axis input; the falloff above 250 u/s along the wall is untested (one rep) |
+| B-WAL-01 fatigue | `Bias(remap(t, 0, 1.25, 0.2, 1), 0.2)` | exact to 4 decimals in 19 chained wall jumps with **Schlick's bias** `x / ((1/b − 2)(1 − x) + 1)` (0.5676 at 1.0 s, 0.3797 at 0.797 s, 0.2414 at 0.5625 s, 1 from 1.25 s). The clock is the time since the previous wall jump |
+| B-WAL-01 stamina | first free, then 0.5; needs stamina above the cost | first per airtime free (all), then 0.5 each (2 → 1.5 → 1.0, 0.51 → 0.01) |
+| B-WAL-01 order | wall jump before air jump | near a wall a press is a wall jump. Wall jumps do **not** use up the air jump (chains wall, wall, air, wall), but they do restart the jump timer (`m_flJumpTime`) |
+| B-WAL-01 lateral input suppression | input along the wall ignored for 0.95 s | **not visible**: sideways air acceleration (13 u/s per tick) continues from the first tick after a wall jump |
+| B-WAL-01 detection | planes within `m_flCollidedWallMaxDist`, remembered within half of it | not measured directly. vdata `m_flRemapSpeedToWallJumpVelocityDist [300, 600, 10, 30]` is the likely distance (10–30 u by speed). The C07 "edge boost" (482–561 u/s off a corner) comes from the weighted normal rotating 40–45° near the corner, so input along the wall gains out speed |
+| B-WAL-02 | terminal velocity 600 while the state is set | `wall_sliding` is set on any airborne wall contact (also rising and mantling), but gravity stays −12.5 u/s per tick and falls pass −600 along walls. No wall slide in practice |
+| B-MNT-01 types | by ledge height | the type is the one whose **height is nearest** the ledge (a 124.8 u ledge is type 128, 58.1 u is type 64); `m_flVertOffset` = ledge height − type height. Seen: 45.5 u (type 32), 58–66 u (64), 98–110 u (96), 125–156 u (128) |
+| B-MNT-01 path | velocity = path step ÷ dt, gravity off | start tick: velocity 0, no movement. Vertical part for the type's time rounded to ticks (**13, 19, 26, 32 ticks**): rise = type height × t/T plus the offset eased in quadratically over the first half (fits to 0.1 u). The first moving tick moves two ticks' worth. Then **13 ticks** (0.2 s) across, constant speed = distance ÷ 0.2 s (36 u in front: 177.2 u/s), with one tick of vertical overshoot taken back on the first horizontal tick. Exit on the next tick: 46 ticks from start for type 128, 33 for type 64, 27 for type 32 |
+| B-MNT-01 trigger | push 0.06 s at < 60 u/s | grounded mantles only up to about 66 u (134 u limit); taller ledges mantle on the tick after a jump (156 u from an airborne start) |
+| B-MNT-01 exit | no forward input: velocity 0; else capped at max speed | forward held: 177 u/s, then ordinary ground movement (191 after the exit tick). Released: 0 on 32/64 u mantles; **166 on the 128 u ledge** M-B (probably the "open space" exception), open |
+| B-MNT-02 | `m_flSlideExitBoostOnGround` (unread) | **+400 u/s** (177 → 577, 98.5 → 498.4), on the exit tick with crouch and forward held; that tick has ordinary ground friction (577 → 541); the slide starts on the next tick with the normal 0.6 s grace (39 ticks at 3/64, then 51/64). One type-128 rep got +270 (crouch pressed late, 43 ticks before the end), open |
+| B-MNT-01 jump | `m_flMantleRefundWindow` 0.1 s? | a jump pressed 3–8 ticks before the exit fires as a free ground jump on the tick after it; 17–22 ticks before is dropped (8 mantles; 9–16 untested) |
+| B-SLD-04 | `lerp(500, 850, (deg − 5)/40)` per second | with the recorded ground normal: residual median 0.01 u/s per tick on 27.8°, 28.3° and 30.7° downhill slides (137 ticks). A 19.3° ramp is 1.0 u/s per tick low (110 ticks), open |
 
 
 ## Ground
@@ -341,7 +366,9 @@ Three phases: cast (`0x25bae0`), per tick (`0x293f40`) and end (`0x2b24e0`).
   (wiki). A miss is capped at `m_flDashJumpMissMaxSpeed` 250. Extra air control after a dash-jump:
   `m_flDashJumpExtraAirControlTime` and `m_flDashJumpExtraAirControlPercent`.
 - **Open:** where the window and lockout are enforced (in the cast path, not the builder).
-- **GAUNTLET:** jumping cancels the dash and keeps horizontal velocity.
+- **GAUNTLET:** implemented in `DeadlockJumps`: inside the window (0.3–0.55 s) velocity is set to 704 along the
+  dash and vz 425 for 1 stamina, with 1.3× air acceleration until 0.6 s after the dash. A ground or late jump during
+  the dash outside the window keeps at most 250 u/s and locks the dash-jump out (decoded, untested).
 
 ## Slide
 
@@ -425,7 +452,8 @@ slide resets the coefficient to 1.
   is `1 − clamp(|angle term| / 45°, 0, 1)`, so steering weakens on steep slopes. Rotation only, so
   speed is kept.
 - **Open:** the slope angle term; `m_flTurnMin/MaxAngDiff` (5 and 2) not seen on this path.
-- **GAUNTLET:** heading steer at `slideControlAcceleration`.
+- **GAUNTLET:** legacy: heading steer at `slideControlAcceleration`. Deadlock model: `DeadlockSlideSteer`, 90°/s
+  with the slope term taken as the slope angle (decoded, untested).
 
 ### B-SLD-06 Sprint-slide boost
 - **Deadlock** (`0x2b0740`): on slide start, if at least 1 s has passed since the last slide change
@@ -493,7 +521,8 @@ slide resets the coefficient to 1.
 
 Decoded 2026-10-23 on build 26059233 (RVAs below). The schema on 26147187 has the same fields.
 Values come from the 25841406 vdata export and the 26147187 convars; the 26147187 vdata could not
-be exported (the pinned Source 2 Viewer rejects a new KV3 type). Not yet checked against a capture.
+be exported (the pinned Source 2 Viewer rejects a new KV3 type). Checked against the 2026-10-26 captures
+(build 26224525, "Live session 2026-10-26" above); corrections from that check are marked **(capture)**.
 
 | RVA | Role |
 | --- | --- |
@@ -521,8 +550,9 @@ be exported (the pinned Source 2 Viewer rejects a new KV3 type). Not yet checked
   of where it was seen (a short wall "coyote" time).
 - **Direction:** `dir = normalize(c × n̂ + (1 − c) × n̂_horizontal)`, with n̂ the wall normal and
   `c = citadel_corner_boost_strength` 0.6. Velocity into the wall is removed first (`v −= dir × min(0, v·dir)`).
-- **Out speed:** `out = lerp(m_flWallJumpMinOutSpeed 225, MaxOutSpeed 310, clamp((facing·dir + 1) × 0.5, 0, 1))`,
-  so looking away from the wall gives up to 310 and looking into it gives 225. `v.xy += dir.xy × out`.
+- **Out speed:** `out = lerp(m_flWallJumpMinOutSpeed 225, MaxOutSpeed 310, clamp((facing·dir + 1) × 0.5, 0, 1))`.
+  **(capture)** `facing` is the movement input (forward + side, not normalised), not the camera: input away
+  from the wall gives 310, no input 267.5, into the wall 225. `v.xy += dir.xy × out`.
 - **Vertical:** `vz = out × dir.z + (vz < 100 ? 0.3 × vz : 0) + power × m_flWallJumpUpSpeed 525`. Falling
   speed is kept at 30%; upward speed of 100 or more is dropped.
 - **Lateral:** along the wall's tangent `t = (−dir.y, dir.x, 0)`, target `= lerp(−100, 100, clamp((facing·t + 1) × 0.5, 0, 1))`
@@ -533,17 +563,23 @@ be exported (the pinned Source 2 Viewer rejects a new KV3 type). Not yet checked
   Each wall jump restarts the fatigue clock: an immediate second wall jump has power ≈ 0.06 (up speed ≈ 31),
   full power returns after 1.25 s. `citadel_wall_jump_fatigue_recovery` (1) scales recovery during heavy
   melee or air dash.
-- **After:** lateral input is suppressed until `now + m_flWallJumpLateralInputSuppressTime` 0.95 s; the
-  current and last valid normals are cleared; `m_vWallJumpNormalUsed` and `m_flLastWallJumpFatigueStrength`
-  are stored.
-- **GAUNTLET:** none.
+- **After:** lateral input is suppressed until `now + m_flWallJumpLateralInputSuppressTime` 0.95 s
+  (**(capture)** no effect seen on air acceleration); the current and last valid normals are cleared;
+  `m_vWallJumpNormalUsed` and `m_flLastWallJumpFatigueStrength` are stored. The jump timer restarts; the air
+  jump stays available.
+- **GAUNTLET:** `SurfController.DeadlockWalls.cs` (`UpdateDeadlockWall`, `TryDeadlockWallJump`). Detection casts
+  the hull a speed-dependent 10–30 u in 8 fixed horizontal directions, weights hits by distance, confirms with
+  a trace toward the wall and keeps the last wall within half the distance. Out speed, vertical, lateral
+  (Hermite falloff from vdata), Schlick-bias fatigue and stamina as above. No lateral input suppression.
+  Values under Deadlock > Wall jump.
 
 ### B-WAL-02 Wall slide
 - **Deadlock** (`0xb076c0`, B-AIR-03), located only: while pawn state bit 8 (likely
   `MODIFIER_STATE_WALLSLIDE`) is set and falling, vz is eased toward `citadel_wall_slide_terminal_velocity` 600.
   What sets the state is not read. `citadel_wall_ride_enabled` is false ("obsolete"), so wall running is
-  off in this build. The upgraded recorder logs the state; a capture should show whether it occurs at all.
-- **GAUNTLET:** none.
+  off in this build. **(capture)** The state is set on any airborne wall contact, but falls are not slowed:
+  no wall slide in practice.
+- **GAUNTLET:** none, not needed.
 
 ### B-MNT-01 Mantle
 - **Ledge search:** `citadel_mantle_probe_depth` 32 u ahead, up to `citadel_mantle_max_height` 134 above.
@@ -561,14 +597,23 @@ be exported (the pinned Source 2 Viewer rejects a new KV3 type). Not yet checked
   `citadel_mantle_cancelling_allowed` (false).
 - **Exit:** with no forward input, velocity is zeroed unless the probe finds open space. Horizontal speed is
   then capped at the hero's max move speed.
-- **GAUNTLET:** none.
+- **(capture)** Type = nearest type height to the ledge; ground mantles up to 134 u, airborne up to 160 u.
+  Path: start tick still, then vertical for 13/19/26/32 ticks (type height linear plus the offset eased
+  quadratically over the first half), then 13 ticks across at distance ÷ 0.2 s (36 u: 177 u/s), exit on
+  the next tick. A jump pressed up to 8 ticks before the exit fires on the tick after it.
+- **GAUNTLET:** `TryStartDeadlockMantle`, `StepDeadlockMantle`, `FinishDeadlockMantle`. Pushing into a wall
+  within the probe depth at under 60 u/s for 0.06 s starts a ledge search: the hull is dropped from the
+  highest mantle height onto the ledge 36 u past the wall, then rise and cross are checked for room. The
+  path follows the capture; exit with forward keeps 177 u/s, without it stops (the 166 u/s type-128
+  case is not modelled). Gravity off; the mantle cancels dash and slide.
 
 ### B-MNT-02 Mantle slide
 - **Deadlock** (`0x295070`, exit): if crouch (button 4, or the slide button) is held, speed is forward and
   mantling is not blocked, the mantle type's `m_flSlideExitBoostOnGround` is added along the horizontal
   velocity, and the slide takes over. The boost values are class defaults, not in the vdata export, so
-  they must be measured.
-- **GAUNTLET:** none.
+  they must be measured. **(capture)** +400 u/s on the exit tick (which has ordinary ground friction); the
+  slide starts the next tick with the normal grace.
+- **GAUNTLET:** `FinishDeadlockMantle` adds `mantleSlideBoost` and defers the slide one tick.
 
 ### Dash-jump air control (B-AIR-02 addendum)
 The 1.3× air acceleration measured on 21 October matches `CAbilityJumpVData::m_flDashJumpExtraAirControlTime`

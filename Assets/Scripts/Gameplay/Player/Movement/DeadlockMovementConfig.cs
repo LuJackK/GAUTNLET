@@ -71,7 +71,7 @@ namespace Fragsurf.Movement {
         public float airDashCost = 1f;
 
         [Header("Stamina")]
-        [Tooltip("EStaminaRegenPerSecond, bars per second (base hero 0.222 = 4.5 s per bar; Mina 4.2 s).")]
+        [Tooltip("EStaminaRegenPerSecond, bars per second (base hero 0.222 = 4.5 s per bar; Mina 4.2 s, measured 0.24).")]
         public float staminaRegenRate = 1f / 4.5f;
 
         [Header("Slide")]
@@ -113,6 +113,84 @@ namespace Fragsurf.Movement {
         public Vector2 slopeFriction = new Vector2(0.15f, 0.15f);
         [Tooltip("m_flFrictionUphillMinSlope / MaxSlope going uphill.")]
         public Vector2 slopeUphillFriction = new Vector2(1f, 1.5f);
+
+        [Tooltip("Slide steering: velocity turns toward the input direction at up to this rate, degrees per second (m_flTurnSpeed 90). Decoded; capture test pending.")]
+        public float slideTurnSpeed = 90f;
+
+        [Header("Dash-jump")]
+        [Tooltip("m_flDashJumpStartTime / m_flDashJumpEndTime, s after a ground dash starts. Confirmed working at 0.31-0.33 s; the end (0.5 or 0.55) is untested.")]
+        public Vector2 dashJumpWindow = new Vector2(0.3f, 0.55f);
+        [Tooltip("Dash-jump sets vertical speed, m/s (m_flDashJumpVerticalSpeed 425 u/s, confirmed).")]
+        public float dashJumpVerticalSpeed = 425f * Unit;
+        [Tooltip("Dash-jump sets horizontal speed along the dash, m/s: 19 m over the flat flight time 2 x 425 / 800 s = 704 u/s (confirmed).")]
+        public float dashJumpHorizontalSpeed = 704f * Unit;
+        [Tooltip("Stamina per dash-jump (confirmed 1, on top of the dash).")]
+        public float dashJumpCost = 1f;
+        [Tooltip("m_flDashJumpMissMaxSpeed, m/s (250 u/s): a jump during the dash outside the window keeps at most this horizontal speed and locks the dash-jump out. Decoded; capture test pending.")]
+        public float dashJumpMissMaxSpeed = 250f * Unit;
+        [Tooltip("Extra air control after a dash-jump lasts until this long after the dash started, s (measured 37-38 ticks).")]
+        public float dashJumpAirControlTime = 0.6f;
+        [Tooltip("Air acceleration multiplier during the extra air control (measured 1.3).")]
+        public float dashJumpAirControlScale = 1.3f;
+
+        [Header("Wall jump")]
+        [Tooltip("m_flWallJumpMinOutSpeed / MaxOutSpeed, m/s (225 and 310 u/s): speed added away from the wall, by input direction (into the wall = min, none = midpoint, away = max). Confirmed.")]
+        public Vector2 wallJumpOutSpeed = new Vector2(225f * Unit, 310f * Unit);
+        [Tooltip("m_flWallJumpUpSpeed, m/s (525 u/s), scaled by fatigue power. Confirmed.")]
+        public float wallJumpUpSpeed = 525f * Unit;
+        [Tooltip("Falling below this vertical speed keeps a fraction of it (100 u/s, confirmed).")]
+        public float wallJumpKeepBelowSpeed = 100f * Unit;
+        [Tooltip("Fraction of vertical speed kept when below the threshold (0.3, confirmed).")]
+        public float wallJumpVerticalKeep = 0.3f;
+        [Tooltip("m_flWallJumpMaxLateralSpeed, m/s (100 u/s): speed added along the wall by input along it. Confirmed.")]
+        public float wallJumpLateralSpeed = 100f * Unit;
+        [Tooltip("Along-wall speeds where the lateral push starts and finishes fading out, m/s (250 and 550 u/s, m_WallJumpLateralSpeedFalloffVsAlongSpeed).")]
+        public Vector2 wallJumpLateralFalloffSpeeds = new Vector2(250f * Unit, 550f * Unit);
+        [Tooltip("Hermite tangents of that falloff curve at its two ends, scaled to the curve span (vdata slopes -0.000483 and -0.00019 per u/s, times 300).")]
+        public Vector2 wallJumpLateralFalloffTangents = new Vector2(-0.1449f, -0.057f);
+        [Tooltip("m_flWallJumpFullPowerRechargeTime, s: power recovers from the minimum to full over this time after a wall jump. Confirmed.")]
+        public float wallJumpFatigueTime = 1.25f;
+        [Tooltip("m_flWallJumpPowerMin (0.2) and m_flWallJumpPowerBias (0.2, Schlick bias). Confirmed to 4 decimals.")]
+        public Vector2 wallJumpPowerMinAndBias = new Vector2(0.2f, 0.2f);
+        [Tooltip("citadel_wall_jump_num_free_wall_jumps: wall jumps since landing that cost the initial cost (1, confirmed).")]
+        public int wallJumpFreeCount = 1;
+        [Tooltip("citadel_initial_wall_jump_stamina_cost (0) and citadel_wall_jump_stamina_cost (0.5). Confirmed. A wall jump needs stamina above its cost.")]
+        public Vector2 wallJumpCosts = new Vector2(0f, 0.5f);
+        [Tooltip("Wall detection distance by speed: m_flRemapSpeedToWallJumpVelocityDist [300, 600] u/s -> [10, 30] u. x/y are the speeds, z/w the distances, m/s and m.")]
+        public Vector4 wallDetectionBySpeed = new Vector4(300f * Unit, 600f * Unit, 10f * Unit, 30f * Unit);
+        [Tooltip("citadel_wall_detection_skin, m (8 u): the confirming trace toward the wall.")]
+        public float wallDetectionSkin = 8f * Unit;
+        [Tooltip("Steepest wall normal accepted, as |normal.y| (0.707 = within 45 degrees of vertical).")]
+        public float wallMaxNormalY = 0.707f;
+
+        [Header("Mantle")]
+        [Tooltip("Mantle types by ledge height (m): x = type height (EMantle32/64/96/128), y = min, z = max, w = vertical time (s). The type whose height is nearest the ledge is used. Times are Deadlock's 0.2/0.3/0.4/0.5 s rounded to whole 64 Hz ticks as the game does (13, 19, 26, 32 ticks, confirmed).")]
+        public Vector4[] mantleTypes = {
+            new Vector4(32f * Unit, 0f, 64f * Unit, 13f / 64f),
+            new Vector4(64f * Unit, 32f * Unit, 96f * Unit, 19f / 64f),
+            new Vector4(96f * Unit, 64f * Unit, 128f * Unit, 26f / 64f),
+            new Vector4(128f * Unit, 96f * Unit, 160f * Unit, 32f / 64f),
+        };
+        [Tooltip("Highest ledge mantled from the ground, m (citadel_mantle_max_height 134 u). In the air the highest type's max applies (160 u, measured 156).")]
+        public float mantleMaxGroundHeight = 134f * Unit;
+        [Tooltip("Lowest ledge mantled, m: ledges within step height are walked (sv_stepsize 18 u).")]
+        public float mantleMinHeight = 18f * Unit;
+        [Tooltip("citadel_mantle_probe_depth, m (32 u): how far ahead a wall must be.")]
+        public float mantleProbeDepth = 32f * Unit;
+        [Tooltip("Horizontal distance moved onto the ledge, m (measured 36 u).")]
+        public float mantleHorizontalDistance = 36f * Unit;
+        [Tooltip("Time for the horizontal part, s (0.2 s rounded to 13 ticks, measured).")]
+        public float mantleHorizontalTime = 13f / 64f;
+        [Tooltip("m_flAutoMantlePushTime, s: pushing into a ledge this long starts the mantle.")]
+        public float mantlePushTime = 0.06f;
+        [Tooltip("m_flAutoMantleBlockedMaxSpeed, m/s (60 u/s): pushing counts while speed toward the wall is below this.")]
+        public float mantleBlockedMaxSpeed = 60f * Unit;
+        [Tooltip("Height kept above the ledge while moving onto it, m.")]
+        public float mantleClearance = 0.02f;
+        [Tooltip("Mantle slide: speed added at the exit when crouch and forward are held, m/s (measured +400 u/s).")]
+        public float mantleSlideBoost = 400f * Unit;
+        [Tooltip("A jump pressed this long before the mantle ends fires as a ground jump when it ends, s (measured: 3-8 ticks work, 17-22 do not).")]
+        public float mantleJumpBuffer = 0.125f;
 
         public float GroundDashSpeed => groundDashDuration > 0f ? groundDashDistance / groundDashDuration : 0f;
         public float AirDashSpeed => airDashDuration > 0f ? airDashDistance / airDashDuration : 0f;

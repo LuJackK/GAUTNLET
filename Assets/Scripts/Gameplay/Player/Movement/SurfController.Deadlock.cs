@@ -23,19 +23,35 @@ namespace Fragsurf.Movement {
             float regenRate = Mathf.Max(0f, d.staminaRegenRate + s.staminaRegenBonus);
             s.stamina = Mathf.MoveTowards(s.stamina, config.GetMaxStamina(s), regenRate * regenTime);
             s.jumpTimer += dt;
+            s.wallJumpFatigueTime = Mathf.Min(s.wallJumpFatigueTime + dt, 10f);
+            s.dashJumpAirControlTimer = Mathf.Max(0f, s.dashJumpAirControlTimer - dt);
+
+            Quaternion yaw = Quaternion.Euler(0f, s.viewAngles.y, 0f);
+            Vector3 input = yaw * new Vector3(s.horizontalAxis, 0f, s.verticalAxis);
+            Vector3 wish = Vector3.ClampMagnitude(input, 1f);
+            float moveSpeed = Mathf.Max(0f, d.walkSpeed) * s.walkFactor;
 
             bool wasGrounded = s.grounded;
-            Vector3 normal = FindGround(surfer, config);
+            bool finishedMantle = s.mantling && s.mantleTime >= MantleDuration(s, d) - 0.00001f;
+            if (finishedMantle) {
+                FinishDeadlockMantle(s, d, wish, moveSpeed);
+                wasGrounded = true;
+            }
+            Vector3 normal = s.mantling ? Vector3.up : FindGround(surfer, config);
             // B-JMP-03: the late-jump window is refreshed by walkable ground.
             s.coyoteTimer = s.grounded ? Mathf.Max(0f, d.lateJumpWindow)
                 : Mathf.Max(0f, Mathf.Min(s.coyoteTimer, Mathf.Max(0f, d.lateJumpWindow)) - dt);
-            Quaternion yaw = Quaternion.Euler(0f, s.viewAngles.y, 0f);
-            Vector3 wish = Vector3.ClampMagnitude(yaw * new Vector3(s.horizontalAxis, 0f, s.verticalAxis), 1f);
-            float moveSpeed = Mathf.Max(0f, d.walkSpeed) * s.walkFactor;
 
-            if (s.moveType == MoveType.Walk) {
+            if (s.moveType == MoveType.Walk && !s.mantling) {
+                UpdateDeadlockWall(surfer, d);
+                if (TryStartDeadlockMantle(surfer, d, wish, dt)) StepDeadlockMantle(s, d, true, dt);
+            } else if (s.moveType == MoveType.Walk) {
+                StepDeadlockMantle(s, d, false, dt);
+            }
+
+            if (s.moveType == MoveType.Walk && !s.mantling) {
                 TryDeadlockDash(s, config, wish, yaw * Vector3.forward);
-                DeadlockJumps(surfer, config, wish, moveSpeed);
+                DeadlockJumps(surfer, config, wish, input, moveSpeed, !finishedMantle);
 
                 if (s.grounded) {
                     Vector3 planar = Planar(s.velocity);
@@ -53,6 +69,7 @@ namespace Fragsurf.Movement {
                         planar = s.dashDirection * d.GroundDashSpeed;
                     } else {
                         if (s.sliding) {
+                            planar = DeadlockSlideSteer(planar, wish, d, onSlope ? slopeAngle : 0f, dt);
                             float coefficient = DeadlockSlideFriction(s, d, onSlope, uphill, slopeAngle);
                             if (onSlope && !uphill) {
                                 // B-SLD-04 (decoded): downhill acceleration up to a speed cap.
@@ -84,15 +101,16 @@ namespace Fragsurf.Movement {
                     } else {
                         // B-AIR-03 then B-AIR-02.
                         DeadlockFriction(ref planar, d.airDrag, d.stopSpeed, dt);
-                        DeadlockAirAccelerate(ref planar, wish, moveSpeed, d, dt);
+                        float accelerate = d.airAccelerate * (s.dashJumpAirControlTimer > 0f ? d.dashJumpAirControlScale : 1f);
+                        DeadlockAirAccelerate(ref planar, wish, moveSpeed, accelerate, d, dt);
                     }
                     s.velocity.x = planar.x;
                     s.velocity.z = planar.z;
                 }
             }
 
-            // B-AIR-01: gravity is off during an air dash.
-            if (!s.grounded && !(s.isDashing && s.airDashing))
+            // B-AIR-01: gravity is off during an air dash and a mantle.
+            if (!s.grounded && !(s.isDashing && s.airDashing) && !s.mantling)
                 s.velocity.y -= d.gravity * s.gravityFactor * dt;
             Vector3 capped = Vector3.ClampMagnitude(Planar(s.velocity), config.maxVelocity);
             s.velocity.x = capped.x;
@@ -125,21 +143,55 @@ namespace Fragsurf.Movement {
                 s.canAirDash = false;
             }
             s.isDashing = s.dashStartedThisFrame = true;
+            s.canDashJump = s.grounded;
             s.dashTimer = s.currentDashDuration = s.grounded ? d.groundDashDuration : d.airDashDuration;
             s.dashCooldownTimer = config.dashCooldown;
             SpendStamina(s, cost, config);
         }
 
-        private void DeadlockJumps(ISurfControllable surfer, MovementConfig config, Vector3 wish, float moveSpeed) {
+        // Jump type order (0x25b970): dash-jump while ground dashing, then ground and late jumps,
+        // wall jump, air jump. facing is the raw input vector for the wall jump.
+        private void DeadlockJumps(ISurfControllable surfer, MovementConfig config, Vector3 wish, Vector3 facing,
+                                   float moveSpeed, bool allowBufferedJump) {
             MoveData s = surfer.moveData;
             DeadlockMovementConfig d = config.deadlock;
-            bool groundJump = s.grounded && (config.autoBhop ? s.wishJump : s.wishJumpDown);
+            // B-MNT-01: a jump pressed near the end of a mantle fires on the first tick after it.
+            bool bufferedJump = allowBufferedJump && s.mantleJumpBuffered;
+            if (allowBufferedJump) s.mantleJumpBuffered = false;
+            bool groundJump = bufferedJump || (s.grounded && (config.autoBhop ? s.wishJump : s.wishJumpDown));
             // B-JMP-03: a late jump needs a fresh press and only applies while not rising.
             bool lateJump = !s.grounded && s.coyoteTimer > 0f && s.jumpCount == 0 && s.wishJumpDown &&
                             s.velocity.y <= 0f;
+            bool missedDashJump = false;
+            if (s.isDashing && !s.airDashing && (groundJump || lateJump || s.wishJumpDown)) {
+                // B-DSH-04: inside the window the dash-jump sets velocity; outside it a ground or late
+                // jump keeps at most the miss speed and the dash-jump is locked out for this dash.
+                float elapsed = s.currentDashDuration - s.dashTimer;
+                if (s.canDashJump && elapsed >= d.dashJumpWindow.x && elapsed <= d.dashJumpWindow.y &&
+                    s.stamina >= d.dashJumpCost) {
+                    LeaveSlide(s);
+                    s.velocity = s.dashDirection * d.dashJumpHorizontalSpeed;
+                    s.velocity.y = d.dashJumpVerticalSpeed;
+                    s.dashJumpAirControlTimer = Mathf.Max(0f, d.dashJumpAirControlTime - elapsed);
+                    s.canDashJump = false;
+                    s.jumpCount = Mathf.Max(1, s.jumpCount);
+                    s.coyoteTimer = 0f;
+                    s.jumpTimer = 0f;
+                    s.jumping = true;
+                    s.grounded = false;
+                    surfer.groundObject = null;
+                    s.isDashing = s.airDashing = false;
+                    s.dashTimer = 0f;
+                    SpendStamina(s, d.dashJumpCost, config);
+                    return;
+                }
+                s.canDashJump = false;
+                missedDashJump = true;
+            }
             if (groundJump || lateJump) {
                 // B-JMP-01: set vertical speed, keep horizontal velocity.
                 LeaveSlide(s);
+                if (missedDashJump) ClampPlanar(s, d.dashJumpMissMaxSpeed);
                 s.velocity.y = d.jumpSpeed;
                 s.jumpCount = 1;
                 s.coyoteTimer = 0f;
@@ -151,6 +203,7 @@ namespace Fragsurf.Movement {
                 s.dashTimer = 0f;
                 return;
             }
+            if (s.wishJumpDown && TryDeadlockWallJump(surfer, config, facing)) return;
             if (!s.grounded && s.wishJumpDown && Mathf.Max(1, s.jumpCount) < config.maxJumps &&
                 s.jumpTimer >= config.doubleJumpDelay && s.stamina >= d.airJumpCost) {
                 // B-JMP-02: set vertical speed; add horizontal speed along input, capped.
@@ -172,6 +225,22 @@ namespace Fragsurf.Movement {
                 s.doubleJumpedThisFrame = true;
                 SpendStamina(s, d.airJumpCost, config);
             }
+        }
+
+        private static void ClampPlanar(MoveData s, float maxSpeed) {
+            Vector3 planar = Vector3.ClampMagnitude(Planar(s.velocity), maxSpeed);
+            s.velocity.x = planar.x;
+            s.velocity.z = planar.z;
+        }
+
+        // B-SLD-05 (decoded): with input, the slide turns toward it at up to the turn speed, in
+        // proportion within 1 degree; steering weakens with slope angle. Speed is kept.
+        private static Vector3 DeadlockSlideSteer(Vector3 planar, Vector3 wish, DeadlockMovementConfig d, float slopeAngle, float dt) {
+            if (wish.sqrMagnitude < 0.0001f || planar.sqrMagnitude < 0.000001f) return planar;
+            float difference = Mathf.DeltaAngle(Mathf.Atan2(planar.x, planar.z) * Mathf.Rad2Deg,
+                                                Mathf.Atan2(wish.x, wish.z) * Mathf.Rad2Deg);
+            float scale = 1f - Mathf.Clamp01(slopeAngle / 45f);
+            return Quaternion.Euler(0f, Mathf.Clamp(difference, -1f, 1f) * d.slideTurnSpeed * scale * dt, 0f) * planar;
         }
 
         // B-SLD-01 / B-SLD-02: start and stop, before this tick's friction. Returns true when a
@@ -243,7 +312,7 @@ namespace Fragsurf.Movement {
         }
 
         // B-AIR-02 (decoded): Source air acceleration with a wish-speed cap that falls with carried speed.
-        private static void DeadlockAirAccelerate(ref Vector3 planar, Vector3 wish, float moveSpeed,
+        private static void DeadlockAirAccelerate(ref Vector3 planar, Vector3 wish, float moveSpeed, float accelerate,
                                                   DeadlockMovementConfig d, float dt) {
             float magnitude = wish.magnitude;
             if (magnitude < 0.0001f) return;
@@ -253,7 +322,7 @@ namespace Fragsurf.Movement {
             float wishSpeed = Mathf.Min(moveSpeed * magnitude, cap);
             float add = wishSpeed - Vector3.Dot(planar, direction);
             if (add <= 0f) return;
-            planar += direction * Mathf.Min(add, d.airAccelerate * wishSpeed * dt);
+            planar += direction * Mathf.Min(add, accelerate * wishSpeed * dt);
         }
 
         // B-DSH-02: air acceleration toward the dash direction with a target speed that shrinks over

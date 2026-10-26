@@ -7,7 +7,7 @@ namespace GAUNTLET.Rollback {
     // Explicit wire contract. The manifest test rejects newly added MoveData
     // fields until they are included here or deliberately classified as bindings.
     public static class WorldMovementSerializer {
-        public const ushort Version = 3;
+        public const ushort Version = 4;
         public static readonly string[] Fields = {
             "frame",
             "lastInput",
@@ -56,6 +56,22 @@ namespace GAUNTLET.Rollback {
             "slideDelay",
             "dashSlideTimer",
             "slideGraceTimer",
+            "canDashJump",
+            "dashJumpAirControlTimer",
+            "wallNormal",
+            "wallSeenOrigin",
+            "wallJumpFatigueTime",
+            "consecutiveWallJumps",
+            "mantling",
+            "mantleTime",
+            "mantlePushTimer",
+            "mantleStart",
+            "mantleDirection",
+            "mantleDistance",
+            "mantleHeight",
+            "mantleOffset",
+            "mantleVerticalTime",
+            "mantleJumpBuffered",
             "slopeLimit",
             "rigidbodyPushForce",
             "defaultHeight",
@@ -153,6 +169,22 @@ namespace GAUNTLET.Rollback {
             writer.Write(value.slideDelay);
             writer.Write(value.dashSlideTimer);
             writer.Write(value.slideGraceTimer);
+            writer.Write(value.canDashJump);
+            writer.Write(value.dashJumpAirControlTimer);
+            writer.Write(value.wallNormal);
+            writer.Write(value.wallSeenOrigin);
+            writer.Write(value.wallJumpFatigueTime);
+            writer.Write(value.consecutiveWallJumps);
+            writer.Write(value.mantling);
+            writer.Write(value.mantleTime);
+            writer.Write(value.mantlePushTimer);
+            writer.Write(value.mantleStart);
+            writer.Write(value.mantleDirection);
+            writer.Write(value.mantleDistance);
+            writer.Write(value.mantleHeight);
+            writer.Write(value.mantleOffset);
+            writer.Write(value.mantleVerticalTime);
+            writer.Write(value.mantleJumpBuffered);
             writer.Write(value.slopeLimit);
             writer.Write(value.rigidbodyPushForce);
             writer.Write(value.defaultHeight);
@@ -251,6 +283,22 @@ namespace GAUNTLET.Rollback {
                 slideDelay = reader.Read<float>(),
                 dashSlideTimer = reader.Read<float>(),
                 slideGraceTimer = reader.Read<float>(),
+                canDashJump = reader.Read<bool>(),
+                dashJumpAirControlTimer = reader.Read<float>(),
+                wallNormal = reader.Read<Vector3>(),
+                wallSeenOrigin = reader.Read<Vector3>(),
+                wallJumpFatigueTime = reader.Read<float>(),
+                consecutiveWallJumps = reader.Read<int>(),
+                mantling = reader.Read<bool>(),
+                mantleTime = reader.Read<float>(),
+                mantlePushTimer = reader.Read<float>(),
+                mantleStart = reader.Read<Vector3>(),
+                mantleDirection = reader.Read<Vector3>(),
+                mantleDistance = reader.Read<float>(),
+                mantleHeight = reader.Read<float>(),
+                mantleOffset = reader.Read<float>(),
+                mantleVerticalTime = reader.Read<float>(),
+                mantleJumpBuffered = reader.Read<bool>(),
                 slopeLimit = reader.Read<float>(),
                 rigidbodyPushForce = reader.Read<float>(),
                 defaultHeight = reader.Read<float>(),
