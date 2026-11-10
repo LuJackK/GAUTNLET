@@ -391,36 +391,93 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
         << c.command_number << ",\"client_tick\":" << c.client_tick << '}';
     return out.str();
   }
+  // CUserCmd (stride 0xA8): +0x08 command number, +0x10 CCitadelUserCmdPB.
+  // Offsets are the generated-class layout seen in the server's CUserCmd copy
+  // (rva 0xb011d0 on 26059233) and the CS2-style CBaseUserCmdPB layout:
+  //   CCitadelUserCmdPB +0x38 base*
+  //   CBaseUserCmdPB +0x18 subtick RepeatedPtrField (+0x20 size), +0x30 move_crc,
+  //     +0x38 buttons*, +0x40 viewangles*, +0x48 execution notes*, then the
+  //     scalars in declaration order: +0x50 legacy number, +0x54 client tick,
+  //     +0x58 prediction offset, +0x5c/+0x60/+0x64 forward/left/up
+  //     (Deadworks usercmd.proto; client tick at +0x54 seen live 21 October)
+  //   CInButtonStatePB +0x18/+0x20/+0x28 held/changed/scroll
+  //   CMsgQAngle +0x18/+0x1c/+0x20 pitch/yaw/roll
+  // An observe run must confirm these before apply mode is trusted.
+  struct CommandLayout {
+    char* base = nullptr;
+    char* buttons = nullptr;
+    char* angles = nullptr;
+    int32_t subtick_count = 0;
+    int32_t engine_number = 0;
+  };
+  static bool ResolveCommand(char* command, CommandLayout& out) {
+    using modlock::gameinterop::ReadNative;
+    out = {};
+    if (!ReadNative(command + 0x10 + 0x38, &out.base, sizeof(out.base)) || !out.base) return false;
+    if (!ReadNative(out.base + 0x38, &out.buttons, sizeof(out.buttons))) return false;
+    if (!ReadNative(out.base + 0x40, &out.angles, sizeof(out.angles))) return false;
+    if (!ReadNative(out.base + 0x20, &out.subtick_count, sizeof(out.subtick_count))) return false;
+    if (!ReadNative(command + 0x08, &out.engine_number, sizeof(out.engine_number))) return false;
+    return out.subtick_count >= 0 && out.subtick_count <= 64;
+  }
+  static bool ReadLayout(const CommandLayout& l, movement_capture::usercmd::CommandInput& out) {
+    using modlock::gameinterop::ReadNative;
+    out = {};
+    if (l.buttons && (!ReadNative(l.buttons + 0x18, &out.held, 8) || !ReadNative(l.buttons + 0x20, &out.changed, 8) ||
+                      !ReadNative(l.buttons + 0x28, &out.scroll, 8)))
+      return false;
+    if (l.angles && (!ReadNative(l.angles + 0x18, &out.pitch, 4) || !ReadNative(l.angles + 0x1c, &out.yaw, 4) ||
+                     !ReadNative(l.angles + 0x20, &out.roll, 4)))
+      return false;
+    if (!ReadNative(l.base + 0x50, &out.command_number, 4) || !ReadNative(l.base + 0x54, &out.client_tick, 4) ||
+        !ReadNative(l.base + 0x5c, &out.forward, 4) || !ReadNative(l.base + 0x60, &out.left, 4) ||
+        !ReadNative(l.base + 0x64, &out.up, 4))
+      return false;
+    for (float v : {out.pitch, out.yaw, out.roll, out.forward, out.left, out.up})
+      if (!std::isfinite(v)) return false;
+    return std::fabs(out.forward) <= 1.01f && std::fabs(out.left) <= 1.01f && std::fabs(out.up) <= 1.01f;
+  }
+  // Subtick moves are cleared (size 0, elements kept for reuse): they carry the
+  // human's edges and would contradict the script.
+  static bool WriteLayout(const CommandLayout& l, const movement_capture::usercmd::CommandInput& in) {
+    using modlock::gameinterop::WriteNative;
+    if (!l.buttons || !l.angles) return false;
+    const int32_t none = 0;
+    return WriteNative(l.buttons + 0x18, &in.held, 8) && WriteNative(l.buttons + 0x20, &in.changed, 8) &&
+           WriteNative(l.buttons + 0x28, &in.scroll, 8) && WriteNative(l.angles + 0x18, &in.pitch, 4) &&
+           WriteNative(l.angles + 0x1c, &in.yaw, 4) && WriteNative(l.angles + 0x20, &in.roll, 4) &&
+           WriteNative(l.base + 0x5c, &in.forward, 4) && WriteNative(l.base + 0x60, &in.left, 4) &&
+           WriteNative(l.base + 0x64, &in.up, 4) && WriteNative(l.base + 0x20, &none, 4);
+  }
   void OnUsercmds(void* controller, void* cmds, int count, bool paused) {
     if (!runner_ || paused || runner_->phase() != Phase::kRunning) return;
     const auto slot = SlotOfController(controller);
     if (!slot || *slot != runner_->slot()) return;
     for (int i = 0; i < count && runner_ && runner_->phase() == Phase::kRunning; ++i) {
-      auto* message = reinterpret_cast<google::protobuf::MessageLite*>(
-          static_cast<char*>(cmds) + i * movement_capture::UsercmdHook::kCommandStride +
-          movement_capture::UsercmdHook::kMessageOffset);
-      const size_t size = message->ByteSizeLong();
-      if (size == 0 || size > 4096) return RunnerFail("unexpected command size");
-      std::string bytes(size, '\0');
-      if (!message->SerializeToArray(bytes.data(), static_cast<int>(size))) return RunnerFail("serialize failed");
+      // The engine's protobuf ABI differs from Modlock's, so the command is read
+      // and written through its generated-class layout instead of virtual calls.
+      char* command = static_cast<char*>(cmds) + i * movement_capture::UsercmdHook::kCommandStride;
+      CommandLayout layout;
+      if (!ResolveCommand(command, layout)) return RunnerFail("unrecognised command layout");
+      // Batches resend recent commands for loss recovery; the server executes a
+      // command only when its number is new, so only those consume a tick.
+      if (last_engine_number_ && layout.engine_number <= *last_engine_number_) continue;
+      last_engine_number_ = layout.engine_number;
       movement_capture::usercmd::CommandInput observed;
-      if (!movement_capture::usercmd::ReadCommand(bytes, observed)) return RunnerFail("unrecognised command layout");
+      if (!ReadLayout(layout, observed)) return RunnerFail("command read failed");
       const auto applied = runner_->Next(observed);
       if (!applied) return;
       std::string readback = "null";
       if (ApplyMode()) {
-        if (!movement_capture::usercmd::WriteCommand(bytes, applied->input) ||
-            !message->ParseFromArray(bytes.data(), static_cast<int>(bytes.size())))
-          return RunnerFail("rewrite failed");
-        std::string again(message->ByteSizeLong(), '\0');
+        if (!WriteLayout(layout, applied->input)) return RunnerFail("rewrite failed");
         movement_capture::usercmd::CommandInput check;
-        if (message->SerializeToArray(again.data(), static_cast<int>(again.size())) &&
-            movement_capture::usercmd::ReadCommand(again, check))
-          readback = CommandJson(check);
+        if (ReadLayout(layout, check)) readback = CommandJson(check);
       }
       RunnerLog("{\"type\":\"cmd\",\"trial\":" + std::to_string(applied->trial) + ",\"tick\":" +
                 std::to_string(applied->tick) + ClockField() + ",\"observed\":" + CommandJson(observed) +
-                ",\"applied\":" + CommandJson(applied->input) + ",\"readback\":" + readback + "}");
+                ",\"applied\":" + CommandJson(applied->input) + ",\"readback\":" + readback +
+                ",\"subtick_moves\":" + std::to_string(layout.subtick_count) +
+                ",\"engine_number\":" + std::to_string(layout.engine_number) + "}");
       if (runner_->phase() != Phase::kRunning)
         RunnerLog(std::string("{\"type\":\"") + (runner_->phase() == Phase::kDone ? "runner_done" : "trial_end") +
                   "\",\"index\":" + std::to_string(applied->trial) + ClockField() + "}");
@@ -494,6 +551,7 @@ class Recorder final : public modlock::Plugin, public modlock::TickContextPlugin
   std::filesystem::path schedule_path_;
   std::string runner_mode_ = "apply";
   std::unique_ptr<movement_capture::usercmd::Runner> runner_;
+  std::optional<int32_t> last_engine_number_;
   std::ofstream runner_log_;
   bool usercmd_installed_ = false;
   modlock::EngineHost* engine_;
