@@ -143,11 +143,37 @@ namespace Fragsurf.Movement {
             public float contactOffset;
             public bool autoSync, queriesHitTriggers;
         }
-        private static string Compatibility(TraceManifest value) {
-            string text = string.Join("|", value.build, value.unity, value.scene, value.tickRate.ToString(),
+        private static readonly string[] CompatibilityNames = {
+            "build", "unity", "scene", "tickRate", "fixedDelta", "movementConfig", "physics", "artifactHash", "contentHash", "backend" };
+        private static string[] CompatibilityValues(TraceManifest value) {
+            return new[] { value.build, value.unity, value.scene, value.tickRate.ToString(),
                 value.fixedDelta.ToString("R", System.Globalization.CultureInfo.InvariantCulture), value.configuration,
-                value.physics, value.artifactHash, value.contentHash, value.backend);
-            using (var hash = SHA256.Create()) return Convert.ToBase64String(hash.ComputeHash(Encoding.UTF8.GetBytes(text)));
+                value.physics, value.artifactHash, value.contentHash, value.backend };
+        }
+        private static string Hash(string text) {
+            using (var hash = SHA256.Create()) return Convert.ToBase64String(hash.ComputeHash(Encoding.UTF8.GetBytes(text ?? "")));
+        }
+        private static string Compatibility(TraceManifest value) => Hash(string.Join("|", CompatibilityValues(value)));
+        // One short hash per compared value, sent with "hello" so a mismatch can name the values that differ.
+        private static string CompatibilityDigest(TraceManifest value) {
+            string[] values = CompatibilityValues(value);
+            var parts = new string[values.Length];
+            for (int i = 0; i < values.Length; i++) parts[i] = CompatibilityNames[i] + "=" + Hash(values[i]).Substring(0, 12);
+            return string.Join(";", parts);
+        }
+        private static string CompatibilityDifferences(string local, string remote) {
+            if (string.IsNullOrEmpty(remote)) return "peer sent no detail (older build?)";
+            var differing = new System.Collections.Generic.List<string>();
+            var theirs = new System.Collections.Generic.HashSet<string>(remote.Split(';'));
+            foreach (string part in local.Split(';'))
+                if (!theirs.Contains(part)) differing.Add(part.Substring(0, part.IndexOf('=')));
+            return differing.Count > 0 ? string.Join(", ", differing) : "unknown";
+        }
+        private static void LogCompatibility(TraceManifest value) {
+            string[] values = CompatibilityValues(value);
+            var text = new StringBuilder("[Capture] Pairing compatibility inputs:\n");
+            for (int i = 0; i < values.Length; i++) text.Append(CompatibilityNames[i]).Append(": ").Append(values[i]).Append('\n');
+            Debug.Log(text.ToString());
         }
         private void Pair(bool asHost) {
             if (!GameplayReady) { status = "Start/join gameplay before pairing."; return; }
@@ -157,9 +183,10 @@ namespace Fragsurf.Movement {
             session = asHost ? Guid.NewGuid().ToString("N") : null;
             manifest = MakeManifest();
             compatibility = Compatibility(manifest);
+            LogCompatibility(manifest);
             channel = new CaptureControlChannel(host, address, Port);
             stage = Stage.Pairing; deadline = Time.realtimeSinceStartup + 60;
-            Send("hello"); status = "Pairing on TCP " + Port;
+            Send("hello", message: CompatibilityDigest(manifest)); status = "Pairing on TCP " + Port;
         }
         private void Send(string type, uint tick = 0, string id = null, string message = null) {
             channel?.Send(new CaptureCommand { type = type, code = code, session = session,
@@ -190,7 +217,11 @@ namespace Fragsurf.Movement {
         private void Handle(CaptureCommand command) {
             if (command == null || command.code != code || command.process == process) { Fail("Pairing code or process mismatch"); return; }
             if (command.type == "hello" && stage == Stage.Pairing) {
-                if (command.compatibility != compatibility) { Fail("Build, scene, tick rate or movement configuration differs"); return; }
+                if (command.compatibility != compatibility) {
+                    string differing = CompatibilityDifferences(CompatibilityDigest(manifest), command.note);
+                    Debug.LogWarning("[Capture] Peer differs in: " + differing);
+                    Fail("Differs from peer: " + differing + " (full values in Player.log)"); return;
+                }
                 if (!host) {
                     if (!Guid.TryParseExact(command.session, "N", out _)) { Fail("Invalid session ID"); return; }
                     session = command.session;
