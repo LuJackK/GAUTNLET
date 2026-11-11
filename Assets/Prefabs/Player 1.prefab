@@ -9428,9 +9428,94 @@ MonoBehaviour:
   playerHitbox: {fileID: 7544863385880156932}
   characterRenderer: {fileID: 3472746310373338021}
   movementConfig:
+    movementModel: 1
+    deadlock:
+      walkSpeed: 7.2
+      crouchSpeed: 4.75
+      acceleration: 4
+      minAccelSpeed: 10.16
+      friction: 4
+      stopSpeed: 2.54
+      gravity: 20.32
+      jumpSpeed: 7.62
+      lateJumpWindow: 0.15
+      airJumpSpeed: 13.335
+      airJumpMaxSpeedDelta: 5.08
+      airJumpCost: 1
+      airAccelerate: 10
+      airControlSpeedSlow: 2.032
+      airControlSpeedFast: 1.27
+      airControlBlendSpeeds: {x: 15.24, y: 20.32}
+      airDrag: 0.2
+      groundDashDistance: 10
+      groundDashDuration: 0.68
+      groundDashCost: 1
+      airDashDistance: 8
+      airDashDuration: 0.47
+      airDashEndVelocityScale: 0.2
+      airDashAccelerationScale: 0.6
+      airDashVerticalHold: 2.54
+      airDashCost: 1
+      staminaRegenRate: 0.22222222
+      slideActivationSpeed: 8.89
+      slideDashActivationSpeed: 6.35
+      slideSustainSpeed: 4.318
+      slideFriction: 0.8
+      slideGraceFriction: 0.05
+      slideGraceTime: 0.6
+      slideLandedGraceTime: 0.75
+      dashSlideStartTime: 0.3
+      dashSlideSpeed: 16.51
+      dashSlideFailSpeed: 11.43
+      dashSlideFriction: 0.175
+      dashSlideFrictionTime: 1
+      slopeMinAngle: 8
+      slopeAngleRange: {x: 5, y: 45}
+      slopeAcceleration: {x: 12.7, y: 21.59}
+      slopeMaxAccelerationSpeed: {x: 30.48, y: 38.1}
+      slopeFriction: {x: 0.15, y: 0.15}
+      slopeUphillFriction: {x: 1, y: 1.5}
+      slideTurnSpeed: 90
+      dashJumpWindow: {x: 0.3, y: 0.55}
+      dashJumpVerticalSpeed: 10.795
+      dashJumpHorizontalSpeed: 17.8816
+      dashJumpCost: 1
+      dashJumpMissMaxSpeed: 6.35
+      dashJumpAirControlTime: 0.6
+      dashJumpAirControlScale: 1.3
+      wallJumpOutSpeed: {x: 5.715, y: 7.874}
+      wallJumpUpSpeed: 13.335
+      wallJumpKeepBelowSpeed: 2.54
+      wallJumpVerticalKeep: 0.3
+      wallJumpLateralSpeed: 2.54
+      wallJumpLateralFalloffSpeeds: {x: 6.35, y: 13.97}
+      wallJumpLateralFalloffTangents: {x: -0.1449, y: -0.057}
+      wallJumpFatigueTime: 1.25
+      wallJumpPowerMinAndBias: {x: 0.2, y: 0.2}
+      wallJumpFreeCount: 1
+      wallJumpCosts: {x: 0, y: 0.5}
+      wallDetectionBySpeed: {x: 7.62, y: 15.24, z: 0.254, w: 0.76199996}
+      wallDetectionSkin: 0.2032
+      wallMaxNormalY: 0.707
+      mantleTypes:
+      - {x: 0.8128, y: 0, z: 1.6256, w: 0.203125}
+      - {x: 1.6256, y: 0.8128, z: 2.4384, w: 0.296875}
+      - {x: 2.4384, y: 1.6256, z: 3.2512, w: 0.40625}
+      - {x: 3.2512, y: 2.4384, z: 4.064, w: 0.5}
+      mantleMaxGroundHeight: 3.4036
+      mantleMinHeight: 0.4572
+      mantleProbeDepth: 0.8128
+      mantleHorizontalDistance: 0.9144
+      mantleHorizontalTime: 0.203125
+      mantlePushTime: 0.06
+      mantleBlockedMaxSpeed: 1.5239999
+      mantleClearance: 0.02
+      mantleSlideBoost: 10.16
+      mantleJumpBuffer: 0.125
     autoBhop: 0
     gravity: 20
     jumpForce: 7
+    coyoteTime: 0.1
     maxJumps: 2
     doubleJumpForce: 10
     doubleJumpDelay: 0.05
@@ -9457,6 +9542,9 @@ MonoBehaviour:
     airCap: 0.4
     airAcceleration: 12
     airFriction: 0.4
+    airControlAcceleration: 18
+    sourceAirStrafeStrength: 0
+    sourceAirSpeedCap: 0.4
     walkSpeed: 7
     sprintSpeed: 12
     acceleration: 14
@@ -9476,6 +9564,9 @@ MonoBehaviour:
     slideSteerForce: 0.7
     slideTiltAngle: 40
     slideTiltSpeed: 10
+    slideDrag: 3
+    slideControlAcceleration: 10
+    slideSlopeAcceleration: 1
     swimUpSpeed: 12
     underwaterSwimSpeed: 3
     underwaterAcceleration: 6
@@ -9495,6 +9586,7 @@ MonoBehaviour:
     heavyMeleeCooldown: 1.5
     heavyMeleeChargeVelocityRetention: 0.465
     heavyMeleeChargeFriction: 6
+    meleeChargeMomentumRetention: 0.8
     parryDuration: 1
     parryCooldown: 3
     heavyMeleeHitbox:
@@ -9793,7 +9885,7 @@ MonoBehaviour:
   _initializeOrder: 0
   _preventDespawnOnDisconnect: 0
   _defaultDespawnType: 0
-  _initializedTimestamp: -8584197900898486090
+  _initializedTimestamp: -8584071937649142394
   NetworkObserver: {fileID: 0}
   _enablePrediction: 1
   _predictionType: 0
