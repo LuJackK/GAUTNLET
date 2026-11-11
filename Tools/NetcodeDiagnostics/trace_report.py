@@ -91,6 +91,207 @@ def evidence(event):
     return {k: event.get(k) for k in ('_process', '_raw', '_line', 'entity', 'epoch', 'tick', 'sourceTick', 'role', 'pass')}
 
 
+CLASS_NAMES = {'A': 'input mismatch', 'B': 'sim nondeterminism', 'C': 'restore gap',
+               'unclassified': 'unclassified'}
+
+
+def _state(event):
+    if not event or not event.get('hasState', bool(event.get('state'))):
+        return None
+    return event.get('state') or None
+
+
+def _sim(state):
+    """Simulation state without the tick stamp and the input seed, which are compared as input."""
+    return {k: v for k, v in (state or {}).items() if k not in ('frame', 'lastInput')}
+
+
+def _controls(value):
+    controls = dict(value or {})
+    controls.pop('frame', None)
+    return controls
+
+
+def _fields(diffs):
+    return [d['field'] for d in diffs]
+
+
+def _ticks(events, role):
+    """Pair each preTick with its postTick. Result: (entity, epoch) -> pass -> tick -> [record]."""
+    result = collections.defaultdict(lambda: collections.defaultdict(lambda: collections.defaultdict(list)))
+    pending = {}
+    for event in events:
+        if event.get('role') != role:
+            continue
+        key = (event.get('entity'), event.get('epoch'), event.get('pass'), event.get('tick'))
+        if event.get('type') == 'preTick':
+            pending[key] = event
+        elif event.get('type') == 'postTick':
+            pre = pending.pop(key, None)
+            result[key[:2]][key[2]][key[3]].append({
+                'pre': pre, 'post': event, 'input': event.get('input'),
+                'created': bool(pre) and pre.get('reason') == 'created input'})
+    return result
+
+
+def _scenario(labels, sequence):
+    name = 'unmarked'
+    for at, label in labels:
+        if at > sequence:
+            break
+        name = label
+    return name
+
+
+def classify_divergence(bundles):
+    """Join the server's ticks with the owner's first-pass ticks and classify each episode's first tick.
+
+    A: the two sides did not run the same input for the tick (or one side did not run the tick once).
+    B: identical pre-tick bits and identical input produced different post-tick bits.
+    C: the divergence enters through a reconcile restore.
+    Equality here covers captured fields only; it is evidence, not a determinism proof.
+    """
+    empty = {'status': 'not applicable', 'joinedTicks': 0, 'divergentTicks': 0, 'episodes': [],
+             'counts': {}, 'firstDivergentFields': {}, 'serverSubstitutedTicks': 0}
+    if len(bundles) != 2:
+        return {**empty, 'reason': 'Two bundles are required'}
+    servers = [b for b in bundles if any(e.get('type') == 'postTick' and e.get('role') == 'server' for e in b['events'])]
+    clients = [b for b in bundles if any(e.get('type') == 'postTick' and e.get('role') == 'owner' for e in b['events'])]
+    if len(servers) != 1 or len(clients) != 1 or servers[0] is clients[0]:
+        return {**empty, 'reason': 'Need exactly one bundle with server ticks and one with remote owner ticks'}
+    server, client = servers[0], clients[0]
+    server_ticks, client_ticks = _ticks(server['events'], 'server'), _ticks(client['events'], 'owner')
+    labels = {id(b): sorted((e.get('sequence', 0), e.get('reason') or e.get('marker') or 'marker')
+                            for e in b['events'] if e.get('type') in ('marker', 'markerReceived')
+                            and e.get('marker') != 'capture-start') for b in (server, client)}
+
+    # Tick mapping. The server stamps a tick with the input's own tick, so the
+    # offset should be zero; the snapshot links measure it instead of assuming it.
+    built = {}
+    for event in server['events']:
+        if event.get('type') == 'snapshotBuilt' and _state(event):
+            built[(event.get('entity'), event.get('epoch'), event.get('sourceTick'))] = event
+    offsets = collections.Counter()
+    for event in client['events']:
+        if event.get('type') == 'snapshotArrived' and event.get('role') == 'owner' and event.get('tick', -1) >= 0:
+            source = built.get((event.get('entity'), event.get('epoch'), event.get('sourceTick')))
+            frame = source['state'].get('lastInput', {}).get('frame', -1) if source else -1
+            if frame >= 0:
+                offsets[event['tick'] - frame] += 1
+    offset = offsets.most_common(1)[0][0] if offsets else 0
+    notes = []
+    if not offsets:
+        notes.append('Tick mapping unverified: no snapshot link carried a server input tick; offset 0 assumed')
+    elif len(offsets) > 1:
+        notes.append('Tick mapping is not constant across snapshot links; the most common offset is used')
+
+    restores = collections.defaultdict(list)
+    for event in client['events']:
+        if event.get('type') == 'restored' and event.get('role') == 'owner':
+            restores[(event.get('entity'), event.get('epoch'))].append(event)
+
+    episodes, joined, divergent, substituted = [], 0, 0, 0
+    for key in sorted(client_ticks, key=str):
+        live = client_ticks[key].get(0, {})
+        theirs = {tick + offset: records for tick, records in server_ticks.get(key, {}).get(0, {}).items()}
+        if not live or not theirs:
+            notes.append(f'Entity {key[0]} epoch {key[1]}: no overlapping server and owner ticks')
+            continue
+        low, high = max(min(live), min(theirs)), min(max(live), max(theirs))
+        previous, open_episode = None, None
+        for tick in range(low, high + 1):
+            s, c = theirs.get(tick, []), live.get(tick, [])
+            if not s and not c:
+                continue
+            joined += 1
+            substituted += sum(1 for r in s if not r['created'])
+            structural = None
+            if not s: structural = 'The server never simulated this owner tick'
+            elif not c: structural = 'The server simulated a tick the owner did not run'
+            elif len(s) > 1: structural = 'The server simulated this tick more than once'
+            elif len(c) > 1: structural = 'The owner ran this tick more than once on its first pass'
+            post = [] if structural else differences(_sim(_state(s[0]['post'])), _sim(_state(c[0]['post'])))
+            if not structural and not post:
+                previous, open_episode = (s[0], c[0]), None
+                continue
+            divergent += 1
+            if open_episode is not None:
+                open_episode['lengthTicks'] += 1
+                continue
+            anchor = (s or c)[0]['post']
+            episode = {'entity': key[0], 'epoch': key[1], 'tick': tick, 'serverTick': tick - offset, 'lengthTicks': 1,
+                       'scenario': _scenario(labels[id(server if s else client)], anchor.get('sequence', 0)),
+                       'firstFields': _fields(post), 'serverSubstituted': any(not r['created'] for r in s),
+                       'server': evidence(s[0]['post']) if s else None, 'client': evidence(c[0]['post']) if c else None}
+            if structural:
+                episode.update({'class': 'A', 'reason': structural})
+            else:
+                episode.update(_classify_first_tick(s[0], c[0], previous, restores[key], client_ticks[key], theirs))
+            episode['classification'] = CLASS_NAMES[episode['class']]
+            episodes.append(episode)
+            open_episode = episode
+    counts = collections.defaultdict(collections.Counter)
+    histogram = collections.Counter()
+    for episode in episodes:
+        counts[episode['class']][episode['scenario']] += 1
+        histogram.update(episode['firstFields'])
+    return {'status': 'joined' if joined else 'not applicable', 'joinedTicks': joined, 'divergentTicks': divergent,
+            'serverSubstitutedTicks': substituted, 'tickOffset': offset,
+            'tickOffsetDistribution': {str(k): v for k, v in sorted(offsets.items())}, 'notes': notes,
+            'counts': {k: dict(v) for k, v in sorted(counts.items())},
+            'firstDivergentFields': dict(histogram.most_common()), 'episodes': episodes}
+
+
+def _classify_first_tick(s, c, previous, restores, client_passes, server_by_tick):
+    inputs = differences(_controls(s['input']), _controls(c['input']))
+    if inputs:
+        reason = 'The server consumed a different input than the owner'
+        if not s['created']:
+            reason += '; the server had no input for this tick and substituted the held one'
+        return {'class': 'A', 'reason': reason, 'inputDifferences': inputs}
+    s_pre, c_pre = _state(s['pre']), _state(c['pre'])
+    if s_pre is None or c_pre is None:
+        return {'class': 'unclassified', 'reason': 'Pre-tick state was not captured on both sides'}
+    pre = differences(_sim(s_pre), _sim(c_pre))
+    if not pre:
+        return {'class': 'B', 'reason': 'Same pre-tick bits and same input, different post-tick bits'}
+    result = {'preFields': _fields(pre)}
+    if previous is None:
+        return {**result, 'class': 'unclassified', 'reason': 'Already divergent at the first joined tick'}
+    after, before = previous[1]['post'].get('sequence', 0), c['pre'].get('sequence', 0)
+    restore = next((r for r in reversed(restores) if after < r.get('sequence', 0) < before), None)
+    if restore is None:
+        moved = differences(_sim(_state(previous[0]['post'])), _sim(s_pre))
+        side = 'server' if moved else 'owner'
+        return {**result, 'class': 'unclassified',
+                'reason': f'Pre-tick state changed on the {side} between ticks with no reconcile restore in between'}
+    result['restore'] = evidence(restore)
+    source = server_by_tick.get(restore.get('tick'), [])
+    if len(source) == 1 and _state(restore):
+        gap = differences(_sim(_state(source[0]['post'])), _sim(_state(restore)))
+        if gap:
+            names = _fields(gap)
+            return {**result, 'class': 'C', 'restoreFields': names,
+                    'notOnWire': [n for n in names if n.split('.')[0] not in WIRE_FIELDS],
+                    'reason': 'The restored state differs from the server state at the same tick'}
+    replay = client_passes.get(restore.get('pass'), {})
+    for tick in sorted(replay):
+        theirs = server_by_tick.get(tick, [])
+        if len(theirs) != 1 or len(replay[tick]) != 1:
+            continue
+        a, b = theirs[0], replay[tick][0]
+        replay_inputs = differences(_controls(a['input']), _controls(b['input']))
+        if replay_inputs:
+            return {**result, 'class': 'A', 'replayTick': tick, 'inputDifferences': replay_inputs,
+                    'reason': 'A replayed tick used a different input than the server consumed'}
+        if differences(_sim(_state(a['post'])), _sim(_state(b['post']))):
+            same_start = not differences(_sim(_state(a['pre'])), _sim(_state(b['pre'])))
+            return {**result, 'replayTick': tick, 'class': 'B' if same_start else 'C',
+                    'reason': 'A replayed tick started from the same bits and input as the server and ended differently'
+                    if same_start else 'A replayed tick started from different bits than the server after the restore'}
+    return {**result, 'class': 'C', 'reason': 'Divergence first appears right after a reconcile restore'}
+
+
 def analyze(bundles):
     manifests = [b['manifest'] for b in bundles]
     issues = []
@@ -183,7 +384,7 @@ def analyze(bundles):
             'compatibilityIssues': sorted(set(issues)), 'complete': not issues,
             'snapshotLinks': matched, 'unmatchedSnapshots': missing,
             'firstObservedDifference': next((f for f in findings if f.get('differences') or f.get('inputDifferences') or f.get('rawBitDifferences')), None),
-            'findings': findings, 'markers': markers, 'copyOverhead': summary,
+            'findings': findings, 'divergence': classify_divergence(bundles), 'markers': markers, 'copyOverhead': summary,
             'performanceScope': 'DTO copy time only; excludes enqueue, GC, disk worker and control traffic; 2% performance gate unverified',
             'manifests': manifests}
 
@@ -207,6 +408,11 @@ def write_report(result, destination):
         '<h2>Compatibility and coverage</h2><pre>' + esc(json.dumps(result['compatibilityIssues'], indent=2)) + '</pre>',
         '<p>Matched snapshot identities: ' + str(result['snapshotLinks']) + '</p>',
         '<h2>First observed difference (process capture order)</h2><pre>' + esc(json.dumps(result['firstObservedDifference'], indent=2)) + '</pre>',
+        '<h2>Server vs owner, tick by tick</h2><p>A: input mismatch. B: sim nondeterminism. C: restore gap. '
+        'Counts are per class and scenario; each episode is classified at its first divergent tick.</p><pre>'
+        + esc(json.dumps({k: v for k, v in result['divergence'].items() if k != 'episodes'}, indent=2)) + '</pre>'
+        '<details><summary>' + str(len(result['divergence']['episodes'])) + ' episodes</summary><pre>'
+        + esc(json.dumps(result['divergence']['episodes'], indent=2)) + '</pre></details>',
         '<h2>Markers</h2><pre>' + esc(json.dumps(result['markers'], indent=2)) + '</pre>',
         '<h2>Recorder copy overhead</h2><pre>' + esc(json.dumps(result['copyOverhead'], indent=2)) + '</pre><p>' + esc(result['performanceScope']) + '</p>',
         '<h2>Findings</h2><table><tr><th>Class</th><th>Process / entity / tick / pass</th><th>Evidence</th></tr>']
@@ -220,10 +426,17 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('bundles', nargs='+', type=pathlib.Path)
     parser.add_argument('--out', type=pathlib.Path, required=True)
+    parser.add_argument('--gate', action='store_true',
+                        help='exit 2 on any class B or C episode, or when no ticks could be joined')
     args = parser.parse_args()
     result = analyze([load_bundle(p) for p in args.bundles])
     write_report(result, args.out)
     print(args.out / 'report.html')
+    divergence = result['divergence']
+    print('joined ticks:', divergence['joinedTicks'], '| divergent:', divergence['divergentTicks'],
+          '| episodes by class:', {k: sum(v.values()) for k, v in divergence['counts'].items()})
+    if args.gate and (not divergence['joinedTicks'] or any(k in divergence['counts'] for k in ('B', 'C'))):
+        raise SystemExit(2)
 
 
 if __name__ == '__main__':

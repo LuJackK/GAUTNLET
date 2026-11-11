@@ -137,5 +137,113 @@ class TraceReportTests(unittest.TestCase):
         json.loads((self.root / 'out/findings.json').read_text())
 
 
+class DivergenceClassificationTests(TraceReportTests):
+    """Server postTick joined with the owner's first-pass postTick, classified at the first divergent tick."""
+
+    def setUp(self):
+        super().setUp()
+        self.sequence = {'server': 0, 'owner': 0}
+
+    def record(self, role, kind, tick, x=0, buttons=0, replay_pass=0, **extra):
+        self.sequence[role] += 1
+        value = state(x, buttons)
+        value['lastInput']['frame'] = tick
+        return dict(type=kind, sequence=self.sequence[role], entity=3, epoch=1, tick=tick, sourceTick=-1, role=role,
+                    hasState=True, state=value, input={'frame': tick, 'characterObjectId': 3, 'buttons': buttons},
+                    **{'pass': replay_pass}, **extra)
+
+    def tick(self, role, tick, before=0, after=0, buttons=0, created=True, replay_pass=0):
+        reason = 'created input' if created else 'predicted held input or empty seed'
+        return [self.record(role, 'preTick', tick, before, buttons, replay_pass, reason=reason),
+                self.record(role, 'postTick', tick, after, buttons, replay_pass)]
+
+    def marker(self, role, note):
+        self.sequence[role] += 1
+        return dict(type='marker', sequence=self.sequence[role], marker='id' + note, reason=note)
+
+    def divergence(self, server, owner):
+        return trace.analyze([self.bundle('A', server), self.bundle('B', owner)])['divergence']
+
+    def test_identical_ticks_have_no_episode(self):
+        result = self.divergence(self.tick('server', 10, 0, 1) + self.tick('server', 11, 1, 2),
+                                 self.tick('owner', 10, 0, 1) + self.tick('owner', 11, 1, 2))
+        self.assertEqual(2, result['joinedTicks'])
+        self.assertEqual([], result['episodes'])
+
+    def test_substituted_server_input_is_class_a(self):
+        server = self.tick('server', 10, 0, 1) + self.tick('server', 11, 1, 2, buttons=0, created=False)
+        owner = self.tick('owner', 10, 0, 1) + self.tick('owner', 11, 1, 3, buttons=1)
+        result = self.divergence(server, owner)
+        self.assertEqual('A', result['episodes'][0]['class'])
+        self.assertTrue(result['episodes'][0]['serverSubstituted'])
+        self.assertIn('substituted', result['episodes'][0]['reason'])
+        self.assertEqual(1, result['serverSubstitutedTicks'])
+
+    def test_tick_only_one_side_ran_is_class_a(self):
+        server = self.tick('server', 10, 0, 1) + self.tick('server', 12, 2, 3)
+        owner = self.tick('owner', 10, 0, 1) + self.tick('owner', 11, 1, 2) + self.tick('owner', 12, 2, 3)
+        result = self.divergence(server, owner)
+        self.assertEqual(['A'], [e['class'] for e in result['episodes']])
+        self.assertEqual(11, result['episodes'][0]['tick'])
+
+    def test_same_pre_and_input_different_post_is_class_b(self):
+        result = self.divergence(self.tick('server', 10, 0, 1) + self.tick('server', 11, 1, 2),
+                                 self.tick('owner', 10, 0, 1) + self.tick('owner', 11, 1, 2.5))
+        episode = result['episodes'][0]
+        self.assertEqual('B', episode['class'])
+        self.assertEqual(['origin.x'], episode['firstFields'])
+        self.assertEqual({'origin.x': 1}, result['firstDivergentFields'])
+
+    def test_restore_that_differs_from_server_state_is_class_c(self):
+        server = self.tick('server', 10, 0, 1) + self.tick('server', 11, 1, 2) + self.tick('server', 12, 2, 3)
+        owner = self.tick('owner', 10, 0, 1) + self.tick('owner', 11, 1, 2)
+        restored = self.record('owner', 'restored', 10, 1, replay_pass=1)
+        restored['state']['wishJump'] = True  # not on the wire: survives from the predicted timeline
+        owner += [restored] + self.tick('owner', 11, 1, 2, replay_pass=1) + self.tick('owner', 12, 9, 10)
+        episode = self.divergence(server, owner)['episodes'][0]
+        self.assertEqual('C', episode['class'])
+        self.assertEqual(12, episode['tick'])
+        self.assertEqual(['wishJump'], episode['notOnWire'])
+
+    def test_nondeterministic_replay_tick_is_class_b(self):
+        server = self.tick('server', 10, 0, 1) + self.tick('server', 11, 1, 2) + self.tick('server', 12, 2, 3)
+        owner = (self.tick('owner', 10, 0, 1) + self.tick('owner', 11, 1, 2) + [self.record('owner', 'restored', 10, 1, replay_pass=1)]
+                 + self.tick('owner', 11, 1, 2.5, replay_pass=1) + self.tick('owner', 12, 2.5, 3.5))
+        episode = self.divergence(server, owner)['episodes'][0]
+        self.assertEqual('B', episode['class'])
+        self.assertEqual(11, episode['replayTick'])
+
+    def test_pre_state_change_without_restore_is_unclassified(self):
+        result = self.divergence(self.tick('server', 10, 0, 1) + self.tick('server', 11, 1, 2),
+                                 self.tick('owner', 10, 0, 1) + self.tick('owner', 11, 5, 6))
+        self.assertEqual('unclassified', result['episodes'][0]['class'])
+        self.assertIn('owner', result['episodes'][0]['reason'])
+
+    def test_consecutive_divergent_ticks_form_one_episode_per_scenario(self):
+        server = ([self.marker('server', 'walk')] + self.tick('server', 10, 0, 1) + self.tick('server', 11, 1, 2)
+                  + self.tick('server', 12, 2, 3) + [self.marker('server', 'dash')] + self.tick('server', 13, 3, 4)
+                  + self.tick('server', 14, 4, 5))
+        owner = (self.tick('owner', 10, 0, 1) + self.tick('owner', 11, 1, 7) + self.tick('owner', 12, 7, 8)
+                 + self.tick('owner', 13, 3, 4) + self.tick('owner', 14, 4, 9))
+        result = self.divergence(server, owner)
+        self.assertEqual([2, 1], [e['lengthTicks'] for e in result['episodes']])
+        self.assertEqual({'B': {'walk': 1, 'dash': 1}}, result['counts'])
+
+    def test_tick_offset_is_measured_from_snapshot_links(self):
+        built = self.record('server', 'snapshotBuilt', 110, 1); built['sourceTick'] = 110
+        built['state']['lastInput']['frame'] = 10
+        server = self.tick('server', 10, 0, 1) + [built] + self.tick('server', 11, 1, 2)
+        arrived = self.record('owner', 'snapshotArrived', 15); arrived['sourceTick'] = 110; arrived['hasState'] = False
+        owner = self.tick('owner', 15, 0, 1) + [arrived] + self.tick('owner', 16, 1, 2)
+        result = self.divergence(server, owner)
+        self.assertEqual(5, result['tickOffset'])
+        self.assertEqual(2, result['joinedTicks'])
+        self.assertEqual([], result['episodes'])
+
+    def test_bundles_without_server_and_owner_ticks_are_not_applicable(self):
+        result = trace.analyze(self.pair([]))['divergence']
+        self.assertEqual('not applicable', result['status'])
+
+
 if __name__ == '__main__':
     unittest.main()

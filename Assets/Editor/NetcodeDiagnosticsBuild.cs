@@ -19,7 +19,22 @@ public sealed class NetcodeDiagnosticsBuild : IPostprocessBuildWithReport {
     public static void Build() {
         string destination = EditorUtility.SaveFolderPanel("Development build folder", "Builds", "LAN-Diagnostics");
         if (string.IsNullOrEmpty(destination)) return;
-        BuildPipeline.BuildPlayer(new BuildPlayerOptions {
+        BuildTo(destination);
+    }
+
+    // Batch entry point: Unity -batchmode -quit -executeMethod NetcodeDiagnosticsBuild.BuildBatch
+    // [-netcodeBuildOutput <folder>]. Exits nonzero when the build fails.
+    public static void BuildBatch() {
+        string[] arguments = Environment.GetCommandLineArgs();
+        int index = Array.IndexOf(arguments, "-netcodeBuildOutput");
+        string destination = index >= 0 && index + 1 < arguments.Length
+            ? arguments[index + 1] : Path.Combine("Builds", "LAN-Diagnostics");
+        BuildReport report = BuildTo(Path.GetFullPath(destination));
+        if (report.summary.result != BuildResult.Succeeded) EditorApplication.Exit(1);
+    }
+
+    private static BuildReport BuildTo(string destination) {
+        return BuildPipeline.BuildPlayer(new BuildPlayerOptions {
             scenes = EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path).ToArray(),
             locationPathName = Path.Combine(destination, "GAUTNLET.exe"),
             target = BuildTarget.StandaloneWindows64,
@@ -28,7 +43,10 @@ public sealed class NetcodeDiagnosticsBuild : IPostprocessBuildWithReport {
     }
 
     public void OnPostprocessBuild(BuildReport report) {
-        if ((report.summary.options & BuildOptions.Development) == 0 || report.summary.result != BuildResult.Succeeded) return;
+        // The result is still Unknown while postprocess callbacks run, so only
+        // a build already known to have failed or been cancelled is skipped.
+        if ((report.summary.options & BuildOptions.Development) == 0) return;
+        if (report.summary.result == BuildResult.Failed || report.summary.result == BuildResult.Cancelled) return;
         if (report.summary.platform != BuildTarget.StandaloneWindows64) return;
         string directory = Path.GetDirectoryName(report.summary.outputPath);
         var stamp = new TraceBuildStamp();
