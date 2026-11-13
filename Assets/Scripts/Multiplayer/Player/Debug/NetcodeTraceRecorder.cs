@@ -61,7 +61,7 @@ namespace Fragsurf.Movement {
         public int QueueDepth => queue.Count;
         public string DirectoryPath => directory;
 
-        public TraceBundleWriter(string directory, TraceManifest manifest, int capacity = 4096, long maxBytes = 512L * 1024 * 1024) {
+        public TraceBundleWriter(string directory, TraceManifest manifest, int capacity = 4096, long maxBytes = 4L * 1024 * 1024 * 1024) {
             this.directory = directory;
             this.manifest = manifest;
             this.maxBytes = maxBytes;

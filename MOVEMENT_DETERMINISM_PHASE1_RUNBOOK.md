@@ -20,7 +20,7 @@ Copy the entire output folder to PC B. `netcode-build.json` (artifact hash) must
 ## 2. Network setup
 
 - Both PCs on the same LAN, ideally wired. Note both IPv4 addresses.
-- Allow `GAUTNLET.exe` through Windows Firewall on private networks. Diagnostics pairing uses TCP **28741** (A listens, B connects); the game transport needs its own port open too.
+- Allow `GAUTNLET.exe` through Windows Firewall on private networks. Diagnostics pairing uses TCP **28741** and bundle transfer TCP **28742** (A listens, B connects on both); the game transport needs its own port open too.
 - Note the CPU model of each PC. The manifest records it, but write it down: a CPU vendor difference matters for class B.
 
 ## 3. Per capture (repeat for each scenario below)
@@ -33,7 +33,9 @@ Copy the entire output folder to PC B. `netcode-build.json` (artifact hash) must
 6. Perform the scenario on **B (the joinee)**. A can stand still or shadow B; the plan's question is B's corrections.
 7. Press **F10** on either PC at the start of each sub-move or whenever something feels off (the marker is sent to both).
 8. A: **Stop and export both**.
-9. Bundles land in `%USERPROFILE%\AppData\LocalLow\<company>\<product>\NetcodeCaptures\<session>\<process>` on each PC (the panel shows the exact path). Copy B's folder to A.
+9. B then sends its bundle to A automatically (gzipped, TCP **28742**, paired peer only). Keep both games open until A's panel says "Received peer bundle" and B's says "Bundle delivered". Both bundles end up on A in `%USERPROFILE%\AppData\LocalLow\DefaultCompany\GAUNTLET\NetcodeCaptures\<session>\`, one folder per PC. If the transfer fails, B's bundle is still on B at the same path and can be copied by hand.
+
+The diagnostics roles are separate from the game roles: keep clicking "A: host diagnostics" on the PC you analyze on, even for the swapped-host captures, so every bundle lands there. Each bundle is capped at 4 GB (about 14 minutes of joinee data at the rate seen in the first idle capture).
 
 A capture fails (partial bundle kept) on a scene change, a disconnect, a 3 s heartbeat gap, or a config mismatch. Re-pair after any failure.
 
